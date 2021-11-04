@@ -154,7 +154,7 @@ stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
 form <- resp ~ 0 +
   intercept + 
   annual_field +
-  f(time_index, model = pcspde, covariates = annual_rain) + 
+  f(time_index, model = pcspde, covariates = annual_rain) +   # Accounts for temporal structure of the covariate
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), data = inla.stack.data(stk.eBird), 
