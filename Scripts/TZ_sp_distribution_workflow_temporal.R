@@ -124,7 +124,9 @@ form <- resp ~ 0 +
   intercept + 
   annual_rain +
   f(time_index, model = pcspde, covariates = annual_rain) +   # Accounts for temporal structure of the covariate
-  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
+# At each time point, spatial locations are linked through the spde.
+# Across time, the process evolves according to an AR(1) process.
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), data = inla.stack.data(stk.eBird), 
             verbose = FALSE,
