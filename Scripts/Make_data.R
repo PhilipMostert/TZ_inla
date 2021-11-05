@@ -45,7 +45,7 @@ temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1960s')
 temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
-# Max.edge based on estimated range, will need adjusting 
+# Max.edge based on an estimated range
 estimated_range = 1
 max.edge = estimated_range/8
 
@@ -91,4 +91,4 @@ stk.pred <- MakeProjectionGrid(
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, TZ_outline, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
