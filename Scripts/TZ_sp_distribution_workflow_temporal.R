@@ -7,6 +7,8 @@ library(tidyverse)
 library(lubridate)
 library(raster)
 library(rgdal)
+library(dplyr)
+library(rlang)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
@@ -56,7 +58,7 @@ ebird_filtered <- ebird_full %>%
 print(summary(ebird_filtered))
 #ebird_sp <- make_ebird_sp(species_list[1], TZ_outline)
 
-df <- ebird_filtered %>% 
+ebird_filtered <- ebird_filtered %>% 
   group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
            `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
   summarise(occurrence = ifelse(species_list[1] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
@@ -69,36 +71,39 @@ df <- ebird_filtered %>%
          effort_distance_km = `EFFORT DISTANCE KM`,
          number_observers = `NUMBER OBSERVERS`)
 
-df_sp <- SpatialPointsDataFrame(
-  coords = df[, c("LONGITUDE", "LATITUDE")],
-  data = data.frame(presence = df$occurrence, duration_minutes = df$duration_minutes,
-                    effort_distance_km = df$effort_distance_km, number_observers = df$number_observers, time_index = df$date_index),
-  proj4string = crs(proj)
-)
+ebird_sp <- SpatialPointsDataFrame(
+  coords = ebird_filtered[, c("LONGITUDE", "LATITUDE")],
+  data = data.frame(presence = ebird_filtered$occurrence, duration_minutes = ebird_filtered$duration_minutes,
+                    effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
+  proj4string = crs(proj))
 
 # Only include eBird data points for the region of interest
 # Get intersecting points
-in_sp <- rgeos::gIntersection(df_sp, TZ_outline)
+in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
 
 # Only keep intersecting points in original spdf
-ebird_sp <- df_sp[in_sp, ]
+ebird_sp <- ebird_sp[in_sp, ]
+
+atlas_full <- atlas_full %>%
+  filter(time_period != 'x') %>%
+  mutate(date_index = ifelse(time_period == '20s',2,1))
+
+atlas_filtered <- atlas_full %>% 
+  mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
+  filter(Scientific == species_list[1]) %>% 
+  mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
+  dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
 
+atlas_sp <- SpatialPointsDataFrame(
+  coords = data.frame(atlas_filtered[, c("Long", "Lat")]),
+  data = data.frame(presence = atlas_filtered$presence, effort = atlas_filtered$effort,
+                    date_index = atlas_filtered$date_index),
+  proj4string = crs(proj))
 
 range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
-#atlas_sp$effort <- range01(atlas_sp$effort)
-
-# Create data stacks for each of the different data types
-#  stk.eBird <- MakeBinomStack(
-#    observs = ebird_sp,
-#    data = temporal_variables_no_BG,
-#    mesh = Mesh$mesh,
-#    presname = "presence",
-#    tag = "eBird",
-#    InclCoords = TRUE)#,
-#add_effort = TRUE, 
-#effort_names = names(ebird_sp@data[ , -which(names(ebird_sp) %in% c("presence"))]))
+atlas_sp$effort <- range01(atlas_sp$effort)
 
 filtered_covs <- temporal_variables_no_BG[,1:2]
 
@@ -106,23 +111,38 @@ calc_covs <- FALSE
 
 if (calc_covs) {
 
-Nearest_covs <- GetNearestCovariate(ebird_sp,filtered_covs)  
+Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
+Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
 
-} else Nearest_covs <- readRDS('/Users/philism/Downloads/Nearest_covs.RDS')
 
-ebird_sp@data[, names(Nearest_covs@data)] <- Nearest_covs@data
+} else {
+  
+Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
+Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
 
+}
+
+ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-## Form new covariate called annual rain which gives value based on time
-
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(time_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
                                    proj4string = crs(proj))
-ebird_sp@data[, 'intercept'] <- 1
+ebird_sp@data[, 'ebird_intercept'] <- 1
 ebird_sp$presence <- as.numeric(ebird_sp$presence)
+
+atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
+atlas_sp <- as(atlas_sp, 'data.frame')
+
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
+                                   data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
+                                   proj4string = crs(proj))
+atlas_sp@data[,'atlas_intercept'] <- 1
+atlas_sp$presence <- as.numeric(atlas_sp$presence)
+
 
 spde <- inla.spde2.matern(mesh = Mesh$mesh)
 pcspde <- inla.spde2.pcmatern(
@@ -137,29 +157,44 @@ ind <- inla.spde.make.index(name ='i',
 
 #projmat <- inla.spde.make.A(Mesh$mesh, as.matrix(ebird_sp@coords)) 
 
-projmat <- inla.spde.make.A(mesh = Mesh$mesh, 
+
+##Change this somehow??
+projmat_eBird <- inla.spde.make.A(mesh = Mesh$mesh, 
                             loc = as.matrix(ebird_sp@coords),
-                            group = ebird_sp$time_index) 
+                            group = ebird_sp$date_index) 
 
 
 #stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']), A=list(1,projmat), tag='eBird',
 #                        effects=list(ebird_sp@data, list(i=1:Mesh$mesh$n)))
 
 stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
-                        A=list(1,projmat), 
+                        A=list(1,projmat_eBird), 
                         tag='eBird',
                         effects=list(ebird_sp@data, i = ind))
 
+projmat_atlas <- inla.spde.make.A(mesh = Mesh$mesh,
+                                  loc = as.matrix(atlas_sp@coords),
+                                  group = atlas_sp$date_index)
+
+stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[,'presence']),
+                        A = list(1,projmat_atlas),
+                        tag = 'atlas',
+                        effects = list(atlas_sp@data, i = ind))
+
+
+integated_stack <- inla.stack(stk.eBird,stk.atlas)
 
 form <- resp ~ 0 +
-  intercept + 
-  annual_field +
-  f(time_index, model = pcspde, covariates = annual_rain) + 
+  ebird_intercept +
+  atlas_intercept +
+  annual_rain +
+  f(date_index, model = pcspde, covariates = annual_rain) + 
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
-model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), data = inla.stack.data(stk.eBird), 
+model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
+            data = inla.stack.data(integated_stack), 
             verbose = FALSE,
-            control.predictor = list(A = inla.stack.A(stk.eBird), 
+            control.predictor = list(A = inla.stack.A(integated_stack), 
             link = NULL, compute = TRUE), 
             E = inla.stack.data(stk.eBird)$e, 
             control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
