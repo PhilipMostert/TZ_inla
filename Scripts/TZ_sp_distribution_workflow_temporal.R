@@ -77,7 +77,7 @@ atlas_full <- atlas_full %>%
 
 atlas_filtered <- atlas_full %>% 
   mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-  filter(Scientific == species_list[1]) %>% 
+  filter(Scientific == species_list[2]) %>% 
   mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
   dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
@@ -121,7 +121,7 @@ atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -132,7 +132,7 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
