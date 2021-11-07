@@ -77,7 +77,7 @@ atlas_full <- atlas_full %>%
 
 atlas_filtered <- atlas_full %>% 
   mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-  filter(Scientific == species_list[1]) %>% 
+  filter(Scientific == species_list[2]) %>% 
   mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
   dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
