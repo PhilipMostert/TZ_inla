@@ -25,7 +25,7 @@ setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
-estimated_range = 1
+estimated_range = 2
 max.edge = estimated_range/8
 load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 
@@ -113,7 +113,8 @@ Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
 Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
 Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
 # Add covariates to the bird data 
-ebird_sp@data[, names(Nearest_covs@data)] <- Nearest_covs@data
+ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
+atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 
 }
 
