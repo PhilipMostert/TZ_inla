@@ -65,8 +65,7 @@ ebird_sp <- SpatialPointsDataFrame(
 
 # Only include eBird data points for the region of interest
 # Get intersecting points
-in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
-in_sp <- rgeos::gIntersection(df_sp, ROI)
+in_sp <- rgeos::gIntersection(ebird_sp, ROI)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
@@ -92,13 +91,8 @@ range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
-# Scale the effort variable
-range01 <- function(x){(x - min(x))/(max(x) - min(x))}
-ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
-#atlas_sp$effort <- range01(atlas_sp$effort)
-
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables_no_BG[,1:2]
+filtered_covs <- temporal_variables_no_BG[,1:6]
 
 calc_covs <- FALSE
 
@@ -121,7 +115,7 @@ if (calc_covs) {
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
