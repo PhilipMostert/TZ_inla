@@ -11,37 +11,30 @@ library(dplyr)
 library(rlang)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
+<<<<<<< HEAD
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')#setwd('/home/ahomec/p/philism/Joris_work/scripts')
+=======
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
+
+#setwd('/home/ahomec/p/philism/Joris_work/scripts')
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
 species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda')
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
-i <- as.numeric(args[1])
-
-time_list = c('20s')
-
-# Max.edge based on estimated range from pilot model
-estimated_range = 2
-max.edge = estimated_range/8
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
+estimated_range = 1
+max.edge = estimated_range/8
 load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
-
-# The prior ranges to use for the model
-# Prior range could be 10*max.edge. Should not be smaller than mesh resolution.
-range0_ls = c(5) 
-Prange_ls = c(0.5)
-range_combs <- crossing(range0_ls, Prange_ls)
-
-sigma0_ls = c(3)
-Psigma_ls =  c(0.01)
-sigma_combs <- crossing(sigma0_ls, Psigma_ls)
-
-all_combs <- crossing(range_combs, sigma_combs)
 
 
 ##Set time 1960s -- 1990s as time 1;
@@ -57,12 +50,11 @@ ebird_filtered <- ebird_full %>%
          `DURATION MINUTES` >= 5,
          `DURATION MINUTES` <= 240)   
 print(summary(ebird_filtered))
-#ebird_sp <- make_ebird_sp(species_list[1], TZ_outline)
 
 ebird_filtered <- ebird_filtered %>% 
   group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
            `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
-  summarise(occurrence = ifelse(species_list[1] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
+  summarise(occurrence = ifelse(species_list[2] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
   ungroup()  %>%
   group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
            `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
@@ -80,11 +72,16 @@ ebird_sp <- SpatialPointsDataFrame(
 
 # Only include eBird data points for the region of interest
 # Get intersecting points
+<<<<<<< HEAD
 in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
+=======
+in_sp <- rgeos::gIntersection(df_sp, ROI)
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
 
+<<<<<<< HEAD
 atlas_full <- atlas_full %>%
   filter(time_period != 'x') %>%
   mutate(date_index = ifelse(time_period == '20s',2,1))
@@ -106,9 +103,17 @@ range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
+=======
+# Scale the effort variable
+range01 <- function(x){(x - min(x))/(max(x) - min(x))}
+ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
+#atlas_sp$effort <- range01(atlas_sp$effort)
+
+# Take only non-GAM data for now
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 filtered_covs <- temporal_variables_no_BG[,1:2]
 
-calc_covs <- FALSE
+calc_covs <- TRUE
 
 if (calc_covs) {
 
@@ -116,10 +121,15 @@ Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)
 Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
 
 
+<<<<<<< HEAD
 } else {
   
 Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
 Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
+=======
+# Add covariates to the bird data 
+ebird_sp@data[, names(Nearest_covs@data)] <- Nearest_covs@data
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 
 }
 
@@ -156,23 +166,24 @@ ind <- inla.spde.make.index(name ='i',
                             n.spde = spde$n.spde,
                             n.group = 2)
 
+<<<<<<< HEAD
 #projmat <- inla.spde.make.A(Mesh$mesh, as.matrix(ebird_sp@coords)) 
 
 
 ##Change this somehow??
 projmat_eBird <- inla.spde.make.A(mesh = Mesh$mesh, 
+=======
+projmat <- inla.spde.make.A(mesh = Mesh$mesh, 
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
                             loc = as.matrix(ebird_sp@coords),
                             group = ebird_sp$date_index) 
-
-
-#stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']), A=list(1,projmat), tag='eBird',
-#                        effects=list(ebird_sp@data, list(i=1:Mesh$mesh$n)))
 
 stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
                         A=list(1,projmat_eBird), 
                         tag='eBird',
                         effects=list(ebird_sp@data, i = ind))
 
+<<<<<<< HEAD
 projmat_atlas <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(atlas_sp@coords),
                                   group = atlas_sp$date_index)
@@ -191,6 +202,15 @@ form <- resp ~ 0 +
   annual_rain +
   f(date_index, model = pcspde, covariates = annual_rain) + 
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+=======
+form <- resp ~ 0 +
+  intercept + 
+  annual_rain +
+  f(time_index, model = pcspde, covariates = annual_rain) +   # Accounts for temporal structure of the covariate
+  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
+# At each time point, spatial locations are linked through the spde.
+# Across time, the process evolves according to an AR(1) process.
+>>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
             data = inla.stack.data(integated_stack), 
