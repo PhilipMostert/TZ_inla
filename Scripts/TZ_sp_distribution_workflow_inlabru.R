@@ -126,7 +126,7 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
@@ -140,11 +140,11 @@ pcspde <- inla.spde2.pcmatern(
   prior.range = c(5, 0.01),   
   prior.sigma = c(2, 0.01))
 
-likeli <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1960s,
+likeli <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1980s,
                         mesh = Mesh$mesh,
                         family = 'binomial',
                         data = atlas_sp)
 temporal_variables_no_BG <- as(temporal_variables_no_BG, 'SpatialPixelsDataFrame')
-md <- bru(~ atlas_intercept(1) + TZ_ann_rain_1960s(main = temporal_variables_no_BG, model = 'linear') - 1, likeli)
+md <- bru(~ atlas_intercept(1) + TZ_ann_rain_1980s(main = temporal_variables_no_BG, model = 'linear') - 1, likeli)
 
-pre <- predict(md, pixels(mesh = Mesh$mesh, mask = TZ_outline), ~exp(TZ_ann_rain_1960s))
+pre <- predict(md, pixels(mesh = Mesh$mesh, mask = TZ_outline), ~exp(TZ_ann_rain_1980s))
