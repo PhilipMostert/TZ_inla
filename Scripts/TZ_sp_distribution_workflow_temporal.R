@@ -11,7 +11,7 @@ library(dplyr)
 library(rlang)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-#setwd('/home/ahomec/p/philism/Joris_work/scripts')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')#setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
 species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda')
@@ -27,6 +27,7 @@ estimated_range = 2
 max.edge = estimated_range/8
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
 load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 
