@@ -33,11 +33,11 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # Import and prepare the temporally varying covariates
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
-TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
+TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_1980_2000.tif') %>% mask(., ROI) 
 TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_80_00.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_80_00.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 
 temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, TZ_ERA5_coldest_80_00, TZ_ERA5_coldest_00_20, TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20)
