@@ -65,8 +65,7 @@ ebird_sp <- SpatialPointsDataFrame(
 
 # Only include eBird data points for the region of interest
 # Get intersecting points
-in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
-in_sp <- rgeos::gIntersection(df_sp, ROI)
+in_sp <- rgeos::gIntersection(ebird_sp, ROI)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
@@ -77,7 +76,7 @@ atlas_full <- atlas_full %>%
 
 atlas_filtered <- atlas_full %>% 
   mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-  filter(Scientific == species_list[1]) %>% 
+  filter(Scientific == species_list[2]) %>% 
   mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
   dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
@@ -92,13 +91,8 @@ range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
-# Scale the effort variable
-range01 <- function(x){(x - min(x))/(max(x) - min(x))}
-ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
-#atlas_sp$effort <- range01(atlas_sp$effort)
-
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables_no_BG[,1:2]
+filtered_covs <- temporal_variables_no_BG[,1:6]
 
 calc_covs <- TRUE
 
@@ -121,7 +115,7 @@ atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -132,7 +126,7 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))

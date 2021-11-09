@@ -33,16 +33,23 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # Import and prepare the temporally varying covariates
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
-# Rainfall
-TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_canopy_height)
-TZ_annual_median_rain_60_90 <- raster('TZ_annual_median_rain_60_90.tif') %>% mask(., ROI) %>% projectRaster(., TZ_canopy_height)
+TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_1980_2000.tif') %>% mask(., ROI) 
+TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 
-temporal_variables <- stack(TZ_annual_median_rain_60_90, TZ_annual_median_rain_00_20)
-names(temporal_variables) <- c('TZ_ann_rain_1960s', 'TZ_ann_rain_2000s')
+temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, TZ_ERA5_coldest_80_00, TZ_ERA5_coldest_00_20, TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20)
+names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 'TZ_min_temp_1980s', 'TZ_min_temp_2000s', 'TZ_max_temp_1980s', 'TZ_max_temp_2000s')
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1960s')
+temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
 temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
+temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
+temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
+temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
+temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
