@@ -9,6 +9,7 @@ library(raster)
 library(rgdal)
 library(dplyr)
 library(rlang)
+library(inlabru)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
 #setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
@@ -66,7 +67,7 @@ ebird_sp <- SpatialPointsDataFrame(
 # Only include eBird data points for the region of interest
 # Get intersecting points
 in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
-in_sp <- rgeos::gIntersection(df_sp, ROI)
+#in_sp <- rgeos::gIntersection(df_sp, ROI)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
@@ -126,7 +127,6 @@ ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rai
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
                                    proj4string = crs(proj))
-ebird_sp@data[, 'ebird_intercept'] <- 1
 ebird_sp$presence <- as.numeric(ebird_sp$presence)
 
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
@@ -136,8 +136,22 @@ atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rai
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
-atlas_sp@data[,'atlas_intercept'] <- 1
 atlas_sp$presence <- as.numeric(atlas_sp$presence)
+
+
+ebird_likelihood <- inlabru::like(formula = presence ~ ebird_intercept + TZ_ann_rain_1960s + spatial,
+                                  mesh = Mesh$mesh,
+                                  family = 'binomial',
+                                  data = ebird_sp,
+                                  )
+
+atlas_likelihood <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1960s + spatial,
+                                  mesh = Mesh$mesh,
+                                  family = 'binomial',
+                                  data = atlas_sp)
+
+
+temporal_variables_no_BG <- as(temporal_variables_no_BG, 'SpatialPixelsDataFrame')
 
 spde <- inla.spde2.matern(mesh = Mesh$mesh)
 pcspde <- inla.spde2.pcmatern(
@@ -146,11 +160,11 @@ pcspde <- inla.spde2.pcmatern(
   prior.range = c(5, 0.01),   
   prior.sigma = c(2, 0.01))
 
-likeli <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1960s,
-                        mesh = Mesh$mesh,
-                        family = 'binomial',
-                        data = atlas_sp)
-temporal_variables_no_BG <- as(temporal_variables_no_BG, 'SpatialPixelsDataFrame')
-md <- bru(~ atlas_intercept(1) + TZ_ann_rain_1960s(main = temporal_variables_no_BG, model = 'linear') - 1, likeli)
+components <- precence + date_index ~ atlas_intercept(1) +
+                                      ebird_intercept(1) +
+                                      TZ_ann_rain_1960s(main = temporal_variables_no_BG, model = 'linear') +
+                                      spatial(main = coordinates, model = pcspde, group = date_index, control.group = list(model = 'ar1')) - 1
 
-pre <- predict(md, pixels(mesh = Mesh$mesh, mask = TZ_outline), ~exp(TZ_ann_rain_1960s))
+joint_model <- bru(components, ebird_likelihood,
+                               atlas_likelihood)
+
