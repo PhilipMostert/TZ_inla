@@ -64,14 +64,14 @@ ebird_sp <- SpatialPointsDataFrame(
                     effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
   proj4string = crs(proj))
 
+colnames(ebird_sp@coords) <- c('Long','Lat') ##Standardizing colnames to match atlas names
+
 # Only include eBird data points for the region of interest
 # Get intersecting points
-<<<<<<< HEAD
+
 in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
 #in_sp <- rgeos::gIntersection(df_sp, ROI)
-=======
 in_sp <- rgeos::gIntersection(ebird_sp, ROI)
->>>>>>> e3f6a4a4ecc5775ae65cec113024dc43d2094c74
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
@@ -123,8 +123,8 @@ ebird_sp <- as(ebird_sp, 'data.frame')
 
 ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 
-ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
-                                   data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
+ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("Long", "Lat")],
+                                   data = ebird_sp[, !names(ebird_sp)%in%c('Long', 'Lat')],
                                    proj4string = crs(proj))
 ebird_sp$presence <- as.numeric(ebird_sp$presence)
 
@@ -159,7 +159,6 @@ pcspde <- inla.spde2.pcmatern(
   prior.range = c(5, 0.01),   
   prior.sigma = c(2, 0.01))
 
-<<<<<<< HEAD
 components <- precence + date_index ~ atlas_intercept(1) +
                                       ebird_intercept(1) +
                                       TZ_ann_rain_1960s(main = temporal_variables_no_BG, model = 'linear') +
@@ -168,13 +167,3 @@ components <- precence + date_index ~ atlas_intercept(1) +
 joint_model <- bru(components, ebird_likelihood,
                                atlas_likelihood)
 
-=======
-likeli <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1980s,
-                        mesh = Mesh$mesh,
-                        family = 'binomial',
-                        data = atlas_sp)
-temporal_variables_no_BG <- as(temporal_variables_no_BG, 'SpatialPixelsDataFrame')
-md <- bru(~ atlas_intercept(1) + TZ_ann_rain_1980s(main = temporal_variables_no_BG, model = 'linear') - 1, likeli)
-
-pre <- predict(md, pixels(mesh = Mesh$mesh, mask = TZ_outline), ~exp(TZ_ann_rain_1980s))
->>>>>>> e3f6a4a4ecc5775ae65cec113024dc43d2094c74
