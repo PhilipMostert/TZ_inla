@@ -138,13 +138,13 @@ atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
 atlas_sp$presence <- as.numeric(atlas_sp$presence)
 
 
-ebird_likelihood <- inlabru::like(formula = presence ~ ebird_intercept + TZ_ann_rain_1960s + spatial,
+ebird_likelihood <- inlabru::like(formula = presence ~ ebird_intercept + rain + spatial,
                                   mesh = Mesh$mesh,
                                   family = 'binomial',
                                   data = ebird_sp,
                                   )
 
-atlas_likelihood <- inlabru::like(formula = presence ~ atlas_intercept + TZ_ann_rain_1960s + spatial,
+atlas_likelihood <- inlabru::like(formula = presence ~ atlas_intercept + rain + spatial,
                                   mesh = Mesh$mesh,
                                   family = 'binomial',
                                   data = atlas_sp)
@@ -159,9 +159,40 @@ pcspde <- inla.spde2.pcmatern(
   prior.range = c(5, 0.01),   
   prior.sigma = c(2, 0.01))
 
+f.temporal_variables_no_BG <- function(Long, Lat, date_index) {
+  
+  spp <- sp::SpatialPointsDataFrame(coords = data.frame(Long = Long, Lat = Lat),
+                                    data = data.frame(date_index = date_index),
+                                    proj4string = proj)
+  
+  v <- over(spp, temporal_variables_no_BG)
+  
+  if (any(is.na(v))) {
+    
+    for (name in names(v)) { 
+      
+      v[,name] <- inlabru::bru_fill_missing(data = temporal_variables_no_BG,
+                                            where = spp,
+                                            values = v[,name])
+      
+    }
+  }
+  
+  v$date_index <- date_index
+  
+  v <- v %>% mutate(rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s)) 
+  
+  return(v$rain)
+  
+}
+
+#Long = ebird_sp@coords[,1] KEEP THESE??
+#Lat = ebird_sp@coords[,2]
+#date_index = ebird_sp$date_index
+
 components <- precence + date_index ~ atlas_intercept(1) +
                                       ebird_intercept(1) +
-                                      TZ_ann_rain_1960s(main = temporal_variables_no_BG, model = 'linear') +
+                                      rain(f.rain(Long = Long, Lat = Lat, date_index = date_index), model = 'linear')  +
                                       spatial(main = coordinates, model = pcspde, group = date_index, control.group = list(model = 'ar1')) - 1
 
 joint_model <- bru(components, ebird_likelihood,
