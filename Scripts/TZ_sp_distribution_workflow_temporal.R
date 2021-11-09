@@ -11,7 +11,7 @@ library(dplyr)
 library(rlang)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
+#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
 
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
@@ -22,7 +22,7 @@ species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astr
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
+#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
 estimated_range = 2
@@ -92,7 +92,7 @@ ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables_no_BG[,1:6]
+filtered_covs <- temporal_variables_no_BG[,1:5]
 
 calc_covs <- TRUE
 
@@ -178,14 +178,14 @@ form <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   annual_rain +
-  f(date_index, model = pcspde, covariates = annual_rain) + 
+  f(time_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
-form <- resp ~ 0 +
-  intercept + 
-  annual_rain +
-  f(time_index, model = pcspde, covariates = annual_rain) +   # Accounts for temporal structure of the covariate
-  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
+#form <- resp ~ 0 +
+#  intercept + 
+#  annual_rain +
+#  f(time_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
+#  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
 # At each time point, spatial locations are linked through the spde.
 # Across time, the process evolves according to an AR(1) process.
 
