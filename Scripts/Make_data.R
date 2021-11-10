@@ -18,7 +18,7 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 # Set Region of Interest
 TZ_outline <- readOGR('TZ_simpler.shp')   # Full extent
 NTRI <- readOGR("NTRI_outline.shp")  # A small subset 
-ROI <- NTRI
+ROI <- TZ_outline
 
 # Import bird data
 ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>% 
@@ -53,7 +53,7 @@ temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
-estimated_range = 1
+estimated_range = 2
 max.edge = estimated_range/8
 
 # Create the mesh 
