@@ -66,6 +66,7 @@ ebird_sp <- SpatialPointsDataFrame(
 # Only include eBird data points for the region of interest
 # Get intersecting points
 in_sp <- rgeos::gIntersection(ebird_sp, ROI)
+in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
@@ -94,7 +95,7 @@ atlas_sp$effort <- range01(atlas_sp$effort)
 # Take only non-GAM data for now
 filtered_covs <- temporal_variables_no_BG[,1:5]
 
-calc_covs <- TRUE
+calc_covs <- FALSE
 
 if (calc_covs) {
 
@@ -115,7 +116,7 @@ atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -126,7 +127,7 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
@@ -170,15 +171,77 @@ stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[,'presence']),
                         A = list(1,projmat_atlas),
                         tag = 'atlas',
                         effects = list(atlas_sp@data, i = ind))
+##Make predictions grid
+if(!exists("Nxy.scale")) Nxy.scale <- 0.1  # about 10km resolution
+
+Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
+Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
+Nxy <- round(Nxy.size / Nxy.scale)
 
 
-integated_stack <- inla.stack(stk.eBird,stk.atlas)
+if(class(Boundary)=="SpatialPolygons") {
+  #create grid based on inla mesh and number of cells specificed by the nxy parameter
+  projgrid <- inla.mesh.projector(Mesh$mesh, xlim=Boundary@bbox["x",], ylim=Boundary@bbox["y",], dims=Nxy)
+  #get the index of points on the grid within the boundary
+  xy.in <- !is.na(over(SpatialPoints(projgrid$lattice$loc, proj4string=Boundary@proj4string), Boundary))
+} else {
+  if(ncol(Boundary)<2) stop("TZ_outline should have at least 2 columns")
+  #create grid based on inla mesh
+  projgrid <- inla.mesh.projector(Mesh$mesh, xlim=range(Boundary[,1]), ylim=range(Boundary[,2]), dims=Nxy)
+  #get the index of points on the grid within the boundary
+  xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
+}
+#select only points on the grid that fall within the boudary
+predcoords <- projgrid$lattice$loc[which(xy.in),]
+colnames(predcoords) <- c('Long','Lat')
+Apred <- projgrid$proj$A[which(xy.in), ]
+
+# Extract covariates for points, add intercept and coordinates
+NearestCovs=GetNearestCovariate(points=predcoords, covs=temporal_variables_no_BG)
+NearestCovs$Intercept=1
+NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
+
+## Need to duplicate data ??
+
+#NewCoords <- do.call(rbind, list(NearestCovs@coords, NearestCovs@coords))
+#NewData <- do.call(rbind, list(NearestCovs@data, NearestCovs@data))
+
+#NearestCovsGroup <- sp::SpatialPointsDataFrame(coords = NewCoords,
+#                                               data = NewData,
+#                                               proj4string = proj)
+
+#colnames(NearestCovsGroup@coords) <- c('Long', 'Lat')
+# stack the predicted data
+# Need to add an index?
+
+## Note:: added the SPDE here
+
+pcspde <- inla.spde2.pcmatern(
+  mesh = Mesh$mesh,
+  alpha = 2,
+  prior.range = c(5, 0.01),   
+  prior.sigma = c(2, 0.01))
+
+
+ind <- inla.spde.make.index(name ='i',
+                            n.spde = pcspde$n.spde,
+                            n.group = 2)
+## Why is effects two lists?
+## Should I also just have effects = list(ind, Neearestcovs@data) ?
+
+##Need new Apred
+ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], predcoords[,2]),
+                               n.group = 2)
+stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
+                            A=list(1,ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, list(i.group = ind$i.group)))
+
+integated_stack <- inla.stack(stk.eBird,stk.atlas, stk.predGroup)
 
 form <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
-  annual_rain +
-  f(time_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
+  #annual_rain +
+  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 #form <- resp ~ 0 +
@@ -194,10 +257,28 @@ model <- inla(form, family = "binomial", control.family = list(link = "cloglog")
             verbose = FALSE,
             control.predictor = list(A = inla.stack.A(integated_stack), 
             link = NULL, compute = TRUE), 
-            E = inla.stack.data(stk.eBird)$e, 
-            control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
+            E = inla.stack.data(integated_stack)$e, 
+            control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE,
+                                   return.marginals.predictor = TRUE))
 summary(model)
 
+xmean <- list()
+for (j in 1:2) {
+  xmean[[j]] <- inla.mesh.project(
+    projgrid, model$summary.random$i$mean[ind$i.group == j])
+}
 
+xy.inGroup <- c(xy.in,xy.in)
+xmean <- unlist(xmean)
+xmean <- xmean[xy.inGroup]
+
+dataObj <- data.frame(mean = xmean,
+                      ind = rep(c(1,2),each = length(xmean)/2))
+
+predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
+spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj, proj4string = proj)
+
+library(inlabru)
+ggplot() + gg(spatObj) + facet_grid(~ind)
 #saveRDS(model, 'model.RDS')
 
