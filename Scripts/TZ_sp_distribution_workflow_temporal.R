@@ -98,19 +98,19 @@ filtered_covs <- temporal_variables_no_BG[,1:5]
 calc_covs <- FALSE
 
 if (calc_covs) {
-
-Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
-Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
-
-
+  
+  Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
+  Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
+  
+  
 } else {
   
-Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
-Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
-# Add covariates to the bird data 
-ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
-atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
-
+  Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
+  Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
+  # Add covariates to the bird data 
+  ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
+  atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
+  
 }
 
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
@@ -241,7 +241,8 @@ form <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   #annual_rain +
-  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
+  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 #form <- resp ~ 0 +
@@ -253,13 +254,13 @@ form <- resp ~ 0 +
 # Across time, the process evolves according to an AR(1) process.
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
-            data = inla.stack.data(integated_stack), 
-            verbose = FALSE,
-            control.predictor = list(A = inla.stack.A(integated_stack), 
-            link = NULL, compute = TRUE), 
-            E = inla.stack.data(integated_stack)$e, 
-            control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE,
-                                   return.marginals.predictor = TRUE))
+              data = inla.stack.data(integated_stack), 
+              verbose = FALSE,
+              control.predictor = list(A = inla.stack.A(integated_stack), 
+                                       link = NULL, compute = TRUE), 
+              E = inla.stack.data(integated_stack)$e, 
+              control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE,
+                                     return.marginals.predictor = TRUE))
 summary(model)
 
 xmean <- list()
