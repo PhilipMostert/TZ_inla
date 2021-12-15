@@ -232,10 +232,18 @@ ind <- inla.spde.make.index(name ='i',
 ##Need new Apred
 ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], predcoords[,2]),
                                n.group = 2)
+
+#Things to do here:: replicate NearestCovs@data + coords twice for the 2 time periods
+#                 :: add date_index = 1,2 to data
+#                 :: Do we need a joint intercept?
+
 stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
                             A=list(1,ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, list(i.group = ind$i.group)))
 
 integated_stack <- inla.stack(stk.eBird,stk.atlas, stk.predGroup)
+
+#Add other covs here
+#Do I add covs like effort to predstack?
 
 form <- resp ~ 0 +
   ebird_intercept +
@@ -252,6 +260,9 @@ form <- resp ~ 0 +
 #  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
 # At each time point, spatial locations are linked through the spde.
 # Across time, the process evolves according to an AR(1) process.
+
+##Things to do::
+ #Add annual rain to the stk.pred. Can't do predections without it
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
               data = inla.stack.data(integated_stack), 
