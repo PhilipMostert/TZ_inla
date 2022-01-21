@@ -66,7 +66,6 @@ ebird_sp <- SpatialPointsDataFrame(
 # Only include eBird data points for the region of interest
 # Get intersecting points
 in_sp <- rgeos::gIntersection(ebird_sp, ROI)
-in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
