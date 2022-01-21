@@ -29,7 +29,6 @@ estimated_range = 2
 max.edge = estimated_range/8
 load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 
-
 ##Set time 1960s -- 1990s as time 1;
 ##Set time 2000s as time 2.
 
@@ -115,7 +114,7 @@ if (calc_covs) {
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -126,7 +125,7 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1960s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
@@ -239,7 +238,7 @@ ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], pre
 stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
                             A=list(1,ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, list(i.group = ind$i.group)))
 
-integated_stack <- inla.stack(stk.eBird,stk.atlas, stk.predGroup)
+integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup)
 
 #Add other covs here
 #Do I add covs like effort to predstack?
