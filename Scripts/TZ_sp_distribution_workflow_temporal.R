@@ -91,7 +91,7 @@ ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables_no_BG[,1:5]
+filtered_covs <- temporal_variables_no_BG[,1:6]
 
 calc_covs <- FALSE
 
@@ -114,7 +114,9 @@ if (calc_covs) {
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
+                                hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
+                                coldest_temp = ifelse(date_index == 1, TZ_min_temp_1980s, TZ_min_temp_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -125,7 +127,9 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
+                                hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
+                                coldest_temp = ifelse(date_index == 1, TZ_min_temp_1980s, TZ_min_temp_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
@@ -240,15 +244,22 @@ stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
 
 integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup)
 
+# Not sure if this is correct, but need to somehow add a copy of 'date_index', with different name
+integated_stack[["effects"]][["data"]][["date_index2"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
+integated_stack[["effects"]][["ncol"]][["date_index2"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
+integated_stack[["effects"]][["names"]][["date_index2"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
+
 #Add other covs here
 #Do I add covs like effort to predstack?
 
 form <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
-  #annual_rain +
+  duration_minutes + effort +  # This okay?
   f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
     hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
+  f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 #form <- resp ~ 0 +
@@ -260,7 +271,7 @@ form <- resp ~ 0 +
 # Across time, the process evolves according to an AR(1) process.
 
 ##Things to do::
- #Add annual rain to the stk.pred. Can't do predections without it
+#Add annual rain to the stk.pred. Can't do predections without it
 
 model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
               data = inla.stack.data(integated_stack), 
@@ -268,8 +279,7 @@ model <- inla(form, family = "binomial", control.family = list(link = "cloglog")
               control.predictor = list(A = inla.stack.A(integated_stack), 
                                        link = NULL, compute = TRUE), 
               E = inla.stack.data(integated_stack)$e, 
-              control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE,
-                                     return.marginals.predictor = TRUE))
+              control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
 summary(model)
 
 xmean <- list()
