@@ -2,12 +2,10 @@ args = commandArgs(trailingOnly = TRUE)
 
 suppressPackageStartupMessages(library(INLA, quietly=TRUE))
 
-library(data.table)
 library(tidyverse)
 library(lubridate)
 library(raster)
 library(rgdal)
-library(dplyr)
 library(rlang)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
