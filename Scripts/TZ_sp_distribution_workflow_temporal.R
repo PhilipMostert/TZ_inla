@@ -279,6 +279,11 @@ model <- inla(form, family = "binomial", control.family = list(link = "cloglog")
               E = inla.stack.data(integated_stack)$e, 
               control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
 summary(model)
+model$summary.random
+
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
+saveRDS(model, 'model_E_leucopareia.RDS')
+
 
 xmean <- list()
 for (j in 1:2) {
