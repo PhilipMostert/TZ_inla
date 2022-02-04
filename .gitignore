@@ -2,7 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
-.model_output
+model_output/
 <<<<<<< HEAD
 =======
 TZ_inla_spatial_temporal.Rproj
