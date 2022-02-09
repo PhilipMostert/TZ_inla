@@ -154,9 +154,9 @@ projmat_eBird <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(ebird_sp@coords),
                                   group = ebird_sp$date_index)
 
-projmat <- inla.spde.make.A(mesh = Mesh$mesh, 
-                            loc = as.matrix(ebird_sp@coords),
-                            group = ebird_sp$date_index) 
+# projmat <- inla.spde.make.A(mesh = Mesh$mesh, 
+#                             loc = as.matrix(ebird_sp@coords),
+#                             group = ebird_sp$date_index) 
 
 stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
                         A=list(1,projmat_eBird), 
@@ -240,7 +240,7 @@ ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], pre
 stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
                             A=list(1,ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, list(i.group = ind$i.group)))
 
-integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup)
+integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
 # Not sure if this is correct, but need to somehow add a copy of 'date_index', with different name
 integated_stack[["effects"]][["data"]][["date_index2"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
@@ -254,10 +254,12 @@ form <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   duration_minutes + effort +  # This okay?
-  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
-    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
-  f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
-    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+  annual_rain + hottest_temp + 
+  date_index +
+  # f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
+  #   hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
+  # f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
+  #   hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 #form <- resp ~ 0 +
@@ -282,7 +284,7 @@ summary(model)
 model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-saveRDS(model, 'model_E_leucopareia.RDS')
+model <- readRDS('model.RDS')
 
 
 xmean <- list()
