@@ -89,7 +89,9 @@ ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables[,1:8]
+filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
+                                       'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
+                                       'TZ_dryspell_1980s', 'TZ_dryspell_2000s')]
 
 calc_covs <- FALSE
 
