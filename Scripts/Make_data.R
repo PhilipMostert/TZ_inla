@@ -32,7 +32,6 @@ atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
-<<<<<<< HEAD
 #setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
 TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
@@ -41,7 +40,7 @@ TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>%
 TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-=======
+
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
 TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif') %>% mask(., ROI) 
@@ -62,7 +61,6 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
                                'TZ_min_temp_1980s', 'TZ_min_temp_2000s', 
                                'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
                                'TZ_dryspell_1980s', 'TZ_dryspell_2000s')
->>>>>>> 4bbdef53c2aa1354aa8b884cfcb0757ca8427b5c
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
@@ -123,8 +121,5 @@ stk.pred <- MakeProjectionGrid(
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-<<<<<<< HEAD
 save(proj, ROI, TZ_outline, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
-=======
 save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
->>>>>>> 4bbdef53c2aa1354aa8b884cfcb0757ca8427b5c
