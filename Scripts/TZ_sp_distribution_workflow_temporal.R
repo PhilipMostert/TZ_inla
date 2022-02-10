@@ -60,9 +60,9 @@ ebird_sp <- SpatialPointsDataFrame(
                     effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
   proj4string = crs(proj))
 
-# Only include eBird data points for the region of interest
+# Only include eBird data points for Tanzania
 # Get intersecting points
-in_sp <- rgeos::gIntersection(ebird_sp, ROI)
+in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
 
 # Only keep intersecting points in original spdf
 ebird_sp <- ebird_sp[in_sp, ]
