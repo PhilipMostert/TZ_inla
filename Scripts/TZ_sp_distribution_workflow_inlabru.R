@@ -159,7 +159,7 @@ pcspde <- inla.spde2.pcmatern(
   prior.range = c(5, 0.01),   
   prior.sigma = c(2, 0.01))
 
-f.temporal_variables_no_BG <- function(Long, Lat, date_index) {
+f.rain <- function(Long, Lat, date_index) {
   
   spp <- sp::SpatialPointsDataFrame(coords = data.frame(Long = Long, Lat = Lat),
                                     data = data.frame(date_index = date_index),
@@ -197,4 +197,20 @@ components <- precence + date_index ~ atlas_intercept(1) +
 
 joint_model <- bru(components, ebird_likelihood,
                                atlas_likelihood)
+
+##Do predictions
+ #Need to add CRS to mesh?
+Mesh$mesh$crs <- proj
+ppxl <- pixels(Mesh$mesh, mask = TZ_outline)
+
+ppxl_all <- cprod(ppxl, data.frame(date_index = seq_len(2)))
+#Ensure coordinate names are consistent across data
+colnames(ppxl_all@coords) = c("Long","Lat") 
+
+#doesn't look correct?
+#the f.rain looks too similar across maps.
+rain_pred <- predict(joint_model, ppxl_all, ~ data.frame(date_index = date_index,
+                                                         lambda = (f.rain(Long,Lat,date_index) + spatial)))
+saveRDS(rain_pred, 'predictions.RDS')
+
 

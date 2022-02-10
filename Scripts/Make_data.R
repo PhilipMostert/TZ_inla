@@ -31,9 +31,9 @@ atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
-setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
-
-TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_1980_2000.tif') %>% mask(., ROI) 
+#setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
+setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
+TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
 TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
@@ -87,6 +87,9 @@ Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
 Nxy <- round(Nxy.size / Nxy.scale)
 
 # Make stack for projections
+#Rewrite ProjectionGrid to incorporate multiple time periods::
+# Look at MakeProjectionGrid script + read https://becarioprecario.bitbucket.io/spde-gitbook/ch-spacetime.html again
+# Will need to load in some other objects ie the ind = inla.make.index from TZ_sp...
 stk.pred <- MakeProjectionGrid(
   nxy = Nxy,
   mesh = Mesh$mesh,
@@ -95,7 +98,8 @@ stk.pred <- MakeProjectionGrid(
   boundary = Boundary
 )
 
+
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, TZ_outline, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
