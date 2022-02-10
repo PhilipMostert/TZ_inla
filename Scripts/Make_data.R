@@ -47,18 +47,20 @@ temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_0
                             TZ_ERA5_coldest_80_00, TZ_ERA5_coldest_00_20, 
                             TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
                             TZ_dryspell_80_00, TZ_dryspell_00_20)
+
 names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
                                'TZ_min_temp_1980s', 'TZ_min_temp_2000s', 
                                'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
                                'TZ_dryspell_1980s', 'TZ_dryspell_2000s')
+
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
@@ -77,12 +79,11 @@ Mesh <- MakeSpatialRegion(
   proj = proj
 )
 
-
 # Make projection stack stack for background mesh, the prediction stack with NA as response.
 # Projection stack = Integration stack
 stk.ip <- MakeIntegrationStack(
   mesh = Mesh$mesh,
-  data = temporal_variables_no_BG,
+  data = temporal_variables,
   area = Mesh$w,
   tag = "ip",
   InclCoords = TRUE
@@ -99,7 +100,7 @@ Nxy <- round(Nxy.size / Nxy.scale)
 stk.pred <- MakeProjectionGrid(
   nxy = Nxy,
   mesh = Mesh$mesh,
-  data = temporal_variables_no_BG,
+  data = temporal_variables,
   tag = "pred",
   boundary = Boundary
 )
@@ -107,4 +108,4 @@ stk.pred <- MakeProjectionGrid(
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
