@@ -17,8 +17,9 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 
 # Set Region of Interest
 TZ_outline <- readOGR('TZ_simpler.shp')   # Full extent
+TZ_buffered <- readOGR('TZ_simpler_buffered.shp')
 NTRI <- readOGR("NTRI_outline.shp")  # A small subset 
-ROI <- TZ_outline
+ROI <- TZ_buffered
 
 # Import bird data
 ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>% 
@@ -31,6 +32,7 @@ atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
+<<<<<<< HEAD
 #setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
 TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
@@ -39,17 +41,37 @@ TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>%
 TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+=======
+setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
-temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, TZ_ERA5_coldest_80_00, TZ_ERA5_coldest_00_20, TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20)
-names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 'TZ_min_temp_1980s', 'TZ_min_temp_2000s', 'TZ_max_temp_1980s', 'TZ_max_temp_2000s')
+TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif') %>% mask(., ROI) 
+TZ_annual_median_rain_00_20 <- raster('TZbuff_annual_median_rain_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_coldest_80_00 <- raster('TZbuff_ERA5_coldest_temperature_1981_1999.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_coldest_00_20 <- raster('TZbuff_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_hottest_80_00 <- raster('TZbuff_ERA5_hottest_temperature_1981_1999.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_ERA5_hottest_00_20 <- raster('TZbuff_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_dryspell_80_00 <- raster('TZbuff_median_annual_dryspell_length_1981_1999.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_dryspell_00_20 <- raster('TZbuff_median_annual_dryspell_length_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+
+temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, 
+                            TZ_ERA5_coldest_80_00, TZ_ERA5_coldest_00_20, 
+                            TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
+                            TZ_dryspell_80_00, TZ_dryspell_00_20)
+
+names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
+                               'TZ_min_temp_1980s', 'TZ_min_temp_2000s', 
+                               'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
+                               'TZ_dryspell_1980s', 'TZ_dryspell_2000s')
+>>>>>>> 4bbdef53c2aa1354aa8b884cfcb0757ca8427b5c
+
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
-temporal_variables_no_BG <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
@@ -63,17 +85,16 @@ Meshpars <- list(max.edge = c(max.edge, max.edge*4),
 
 Mesh <- MakeSpatialRegion(
   data = NULL,
-  bdry = ROI,
+  bdry = ROI,    
   meshpars = Meshpars,
   proj = proj
 )
-plot(Mesh$mesh)
 
 # Make projection stack stack for background mesh, the prediction stack with NA as response.
 # Projection stack = Integration stack
 stk.ip <- MakeIntegrationStack(
   mesh = Mesh$mesh,
-  data = temporal_variables_no_BG,
+  data = temporal_variables,
   area = Mesh$w,
   tag = "ip",
   InclCoords = TRUE
@@ -93,7 +114,7 @@ Nxy <- round(Nxy.size / Nxy.scale)
 stk.pred <- MakeProjectionGrid(
   nxy = Nxy,
   mesh = Mesh$mesh,
-  data = temporal_variables_no_BG,
+  data = temporal_variables,
   tag = "pred",
   boundary = Boundary
 )
@@ -102,4 +123,8 @@ stk.pred <- MakeProjectionGrid(
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
+<<<<<<< HEAD
 save(proj, ROI, TZ_outline, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+=======
+save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+>>>>>>> 4bbdef53c2aa1354aa8b884cfcb0757ca8427b5c
