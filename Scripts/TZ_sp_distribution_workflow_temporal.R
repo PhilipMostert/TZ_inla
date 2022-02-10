@@ -89,7 +89,7 @@ ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables_no_BG[,1:6]
+filtered_covs <- temporal_variables[,1:8]
 
 calc_covs <- FALSE
 
@@ -114,7 +114,7 @@ ebird_sp <- as(ebird_sp, 'data.frame')
 
 ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
                                 hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
-                                coldest_temp = ifelse(date_index == 1, TZ_min_temp_1980s, TZ_min_temp_2000s))
+                                max_dryspell = ifelse(date_index == 1, TZ_dryspell_1980s, TZ_dryspell_2000s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -127,15 +127,15 @@ atlas_sp <- as(atlas_sp, 'data.frame')
 
 atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
                                 hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
-                                coldest_temp = ifelse(date_index == 1, TZ_min_temp_1980s, TZ_min_temp_2000s))
+                                max_dryspell = ifelse(date_index == 1, TZ_dryspell_1980s, TZ_dryspell_2000s))
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
 atlas_sp@data[,'atlas_intercept'] <- 1
 atlas_sp$presence <- as.numeric(atlas_sp$presence)
 
-
 spde <- inla.spde2.matern(mesh = Mesh$mesh)
+
 pcspde <- inla.spde2.pcmatern(
   mesh = Mesh$mesh,
   alpha = 2,
@@ -197,7 +197,7 @@ colnames(predcoords) <- c('Long','Lat')
 Apred <- projgrid$proj$A[which(xy.in), ]
 
 # Extract covariates for points, add intercept and coordinates
-NearestCovs=GetNearestCovariate(points=predcoords, covs=temporal_variables_no_BG)
+NearestCovs=GetNearestCovariate(points=predcoords, covs=temporal_variables)
 NearestCovs$Intercept=1
 NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
 
@@ -214,18 +214,7 @@ NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
 # stack the predicted data
 # Need to add an index?
 
-## Note:: added the SPDE here
 
-pcspde <- inla.spde2.pcmatern(
-  mesh = Mesh$mesh,
-  alpha = 2,
-  prior.range = c(5, 0.01),   
-  prior.sigma = c(2, 0.01))
-
-
-ind <- inla.spde.make.index(name ='i',
-                            n.spde = pcspde$n.spde,
-                            n.group = 2)
 ## Why is effects two lists?
 ## Should I also just have effects = list(ind, Neearestcovs@data) ?
 
@@ -247,13 +236,31 @@ integated_stack[["effects"]][["data"]][["date_index2"]] <- integated_stack[["eff
 integated_stack[["effects"]][["ncol"]][["date_index2"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
 integated_stack[["effects"]][["names"]][["date_index2"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
 
+integated_stack[["effects"]][["data"]][["date_index3"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
+integated_stack[["effects"]][["ncol"]][["date_index3"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
+integated_stack[["effects"]][["names"]][["date_index3"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
+
 #Add other covs here
 #Do I add covs like effort to predstack?
 
-form <- resp ~ 0 +
+# MODEL 1 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+form_1 <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
-  duration_minutes + effort +  # This okay?
+  duration_minutes + effort + 
+  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
+  f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+  f(date_index3, max_dryspell, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+
+# MODEL 2 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+form_2 <- resp ~ 0 +
+  ebird_intercept +
+  atlas_intercept +
+  duration_minutes + effort + 
   annual_rain + hottest_temp + 
   date_index +
   # f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
@@ -261,6 +268,7 @@ form <- resp ~ 0 +
   # f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
   #   hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+
 
 #form <- resp ~ 0 +
 #  intercept + 
@@ -273,7 +281,7 @@ form <- resp ~ 0 +
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
 
-model <- inla(form, family = "binomial", control.family = list(link = "cloglog"), 
+model <- inla(form_1, family = "binomial", control.family = list(link = "cloglog"), 
               data = inla.stack.data(integated_stack), 
               verbose = FALSE,
               control.predictor = list(A = inla.stack.A(integated_stack), 
