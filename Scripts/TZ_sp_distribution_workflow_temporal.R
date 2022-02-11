@@ -286,7 +286,7 @@ form_2 <- resp ~ 0 +
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
 
-model <- inla(form_1, family = "binomial", control.family = list(link = "cloglog"), 
+model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
               data = inla.stack.data(integated_stack), 
               verbose = FALSE,
               control.predictor = list(A = inla.stack.A(integated_stack), 
@@ -297,7 +297,8 @@ summary(model)
 model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-model <- readRDS('model.RDS')
+saveRDS(model, file = "model_form_2.RDS")
+model <- readRDS('model_form_2.RDS')
 
 
 xmean <- list()
