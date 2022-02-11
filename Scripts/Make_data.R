@@ -93,13 +93,13 @@ Mesh <- MakeSpatialRegion(
 
 # Make projection stack stack for background mesh, the prediction stack with NA as response.
 # Projection stack = Integration stack
-stk.ip <- MakeIntegrationStack(
-  mesh = Mesh$mesh,
-  data = temporal_variables,
-  area = Mesh$w,
-  tag = "ip",
-  InclCoords = TRUE
-)
+#stk.ip <- MakeIntegrationStack(
+  #mesh = Mesh$mesh,
+  #data = temporal_variables,
+  #area = Mesh$w,
+  #tag = "ip",
+  #InclCoords = TRUE
+#)
 
 Points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
 colnames(Points) <- c("LONGITUDE", "LATITUDE")
