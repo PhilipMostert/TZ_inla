@@ -7,20 +7,22 @@ library(raster)
 library(rgdal)
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
+#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
 # Import and prepare data-----------------------------------------------------------------------------------
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data')
+#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data')
 
 # Set Region of Interest
 TZ_outline <- readOGR('TZ_simpler.shp')   # Full extent
+setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
 TZ_buffered <- readOGR('TZ_simpler_buffered.shp')
 NTRI <- readOGR("NTRI_outline.shp")  # A small subset 
 ROI <- TZ_buffered
 
+setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 # Import bird data
 ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>% 
   mutate(date = ymd(get("OBSERVATION DATE"))) %>%
@@ -34,12 +36,15 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # Import and prepare the temporally varying covariates
 #setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
+setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
 TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
 TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+
+setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
 
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
@@ -90,13 +95,36 @@ Mesh <- MakeSpatialRegion(
 
 # Make projection stack stack for background mesh, the prediction stack with NA as response.
 # Projection stack = Integration stack
-stk.ip <- MakeIntegrationStack(
-  mesh = Mesh$mesh,
-  data = temporal_variables,
-  area = Mesh$w,
-  tag = "ip",
-  InclCoords = TRUE
-)
+#stk.ip <- MakeIntegrationStack(
+#mesh = Mesh$mesh,
+#data = temporal_variables,
+#area = Mesh$w,
+#tag = "ip",
+#InclCoords = TRUE
+#)
+
+Points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
+colnames(Points) <- c("LONGITUDE", "LATITUDE")
+NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
+
+Points <- rbind(Points, Points)
+Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(Points)/2))
+Points_data[, 'annual_rain'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_ann_rain_1980s, NearestCovs@data$TZ_ann_rain_2000s)
+Points_data[, 'hottest_temp'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_max_temp_1980s, NearestCovs@data$TZ_max_temp_2000s)
+Points_data[, 'max_dryspell'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_dryspell_1980s, NearestCovs@data$TZ_dryspell_2000s)
+
+IP_sp <- sp::SpatialPointsDataFrame(coords = Points, data = Points_data, proj4string = proj)
+IP_sp@data$Intercept <- 1
+IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
+projmat.ip <- Matrix::Diagonal(2 * Mesh$mesh$n, rep(1, Mesh$mesh$n * 2)) 
+
+ind <- inla.spde.make.index(name ='i',
+                            n.spde = Mesh$mesh$n,
+                            n.group = 2)
+
+stk.ip <- inla.stack(data=list(resp= NA, e=c(Mesh$w, Mesh$w)), ##Removed the rep(0, ...)?
+                     A=list(1,projmat.ip), tag='ip',
+                     effects=list(IP_sp@data, i = ind))
 
 # Make data for projections
 if(!exists("Nxy.scale")) Nxy.scale <- 0.1  # about 10km resolution
@@ -106,9 +134,6 @@ Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
 Nxy <- round(Nxy.size / Nxy.scale)
 
 # Make stack for projections
-#Rewrite ProjectionGrid to incorporate multiple time periods::
-# Look at MakeProjectionGrid script + read https://becarioprecario.bitbucket.io/spde-gitbook/ch-spacetime.html again
-# Will need to load in some other objects ie the ind = inla.make.index from TZ_sp...
 stk.pred <- MakeProjectionGrid(
   nxy = Nxy,
   mesh = Mesh$mesh,
@@ -117,9 +142,7 @@ stk.pred <- MakeProjectionGrid(
   boundary = Boundary
 )
 
-
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, TZ_outline, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables_no_BG, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
