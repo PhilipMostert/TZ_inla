@@ -103,8 +103,11 @@ if (calc_covs) {
   
 } else {
   
-  Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
-  Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
+  #Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
+  #Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
+  setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Covariate_data')
+  Nearest_covs_ebird <- readRDS("Nearest_covs_ebird.RDS")
+  Nearest_covs_atlas <- readRDS("Nearest_covs_atlas.RDS")
   # Add covariates to the bird data 
   ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
   atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
