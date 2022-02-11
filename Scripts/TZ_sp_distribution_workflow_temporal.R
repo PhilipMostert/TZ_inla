@@ -89,7 +89,9 @@ ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
 # Take only non-GAM data for now
-filtered_covs <- temporal_variables[,1:8]
+filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
+                                       'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
+                                       'TZ_dryspell_1980s', 'TZ_dryspell_2000s')]
 
 calc_covs <- FALSE
 
@@ -101,11 +103,8 @@ if (calc_covs) {
   
 } else {
   
-  #Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
-  #Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
-  setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Covariate_data')
-  Nearest_covs_ebird <- readRDS("Nearest_covs_ebird.RDS")
-  Nearest_covs_atlas <- readRDS("Nearest_covs_atlas.RDS")
+  Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
+  Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
   # Add covariates to the bird data 
   ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
   atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
