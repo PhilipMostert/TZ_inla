@@ -88,12 +88,15 @@ range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
-# Take only non-GAM data for now
-filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
-                                       'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
-                                       'TZ_dryspell_1980s', 'TZ_dryspell_2000s')]
+filtered_covs <- temporal_variables[,c('z.TZ_ann_rain_1980s1.s', 'z.TZ_ann_rain_2000s1.s', 
+                                       'z.TZ_ann_rain_1980s2.s', 'z.TZ_ann_rain_2000s2.s', 
+                                       'z.TZ_max_temp_1980s1.s', 'z.TZ_max_temp_2000s1.s',
+                                       'z.TZ_max_temp_1980s2.s', 'z.TZ_max_temp_2000s2.s',
+                                       'z.TZ_dryspell_1980s1.s', 'z.TZ_dryspell_2000s1.s',
+                                       'z.TZ_dryspell_1980s2.s', 'z.TZ_dryspell_2000s2.s')]
+# View(filtered_covs@coords[is.na(filtered_covs@coords[,1]), ] )
+ebird_sp@coords
 
-calc_covs <- FALSE
 
 if (calc_covs) {
   
@@ -117,9 +120,12 @@ if (calc_covs) {
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
-ebird_sp <- ebird_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
-                                hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
-                                max_dryspell = ifelse(date_index == 1, TZ_dryspell_1980s, TZ_dryspell_2000s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_2000s1.s),
+                                annual_rain_2 = ifelse(date_index == 1, z.TZ_ann_rain_1980s2.s, z.TZ_ann_rain_2000s2.s),
+                                hottest_temp_1 = ifelse(date_index == 1, z.TZ_max_temp_1980s1.s, z.TZ_max_temp_2000s1.s),
+                                hottest_temp_2 = ifelse(date_index == 1, z.TZ_max_temp_1980s2.s, z.TZ_max_temp_2000s2.s),
+                                max_dryspell_1 = ifelse(date_index == 1, z.TZ_dryspell_1980s1.s, z.TZ_dryspell_2000s1.s),
+                                max_dryspell_2 = ifelse(date_index == 1, z.TZ_dryspell_1980s2.s, z.TZ_dryspell_2000s2.s))
 
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
@@ -236,7 +242,13 @@ stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
 
 integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
-# Not sure if this is correct, but need to somehow add a copy of 'date_index', with different name
+# Not sure if this is correct, but need to somehow add a copy of 'date_index', with different namez
+duplicate_index <- function(new_index){
+      integated_stack[["effects"]][["data"]][[new_index]] <- integated_stack[["effects"]][["data"]][["date_index"]]
+}
+index_list <- paste0("date_index", 1:6)
+tapply(x = index_list, duplicate_index)
+test <- replicate(3, integated_stack[["effects"]][["data"]][["date_index"]])
 integated_stack[["effects"]][["data"]][["date_index2"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
 integated_stack[["effects"]][["ncol"]][["date_index2"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
 integated_stack[["effects"]][["names"]][["date_index2"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
@@ -316,8 +328,21 @@ dataObj <- data.frame(mean = xmean,
 
 predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
 spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj, proj4string = proj)
+spatObj <- crop(spatObj, TZ_outline)
+spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
+spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
 library(inlabru)
-ggplot() + gg(spatObj) + facet_grid(~ind)
+ggplot() + 
+  gg(spatObj) + 
+  facet_grid(~ind) +
+  coord_equal() +
+  scale_fill_viridis() +
+  theme_void() +
+  theme(legend.position = 'none',
+        plot.title = element_text(hjust = 0.5, vjust = 5)) +
+  ggtitle("Fischer's sparrow-lark distribution")
+
+
 #saveRDS(model, 'model.RDS')
 
