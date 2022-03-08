@@ -75,6 +75,8 @@ temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_1980s')
 temporal_variables <- prepare_GAM(temporal_variables, 'TZ_min_temp_2000s')
 temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
 temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_dryspell_1980s')
+temporal_variables <- prepare_GAM(temporal_variables, 'TZ_dryspell_2000s')
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
@@ -109,9 +111,14 @@ NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
 
 Points <- rbind(Points, Points)
 Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(Points)/2))
-Points_data[, 'annual_rain'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_ann_rain_1980s, NearestCovs@data$TZ_ann_rain_2000s)
-Points_data[, 'hottest_temp'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_max_temp_1980s, NearestCovs@data$TZ_max_temp_2000s)
-Points_data[, 'max_dryspell'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_dryspell_1980s, NearestCovs@data$TZ_dryspell_2000s)
+Points_data[, 'annual_rain_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s1.s, NearestCovs@data$z.TZ_ann_rain_2000s1.s)
+Points_data[, 'annual_rain_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s2.s, NearestCovs@data$z.TZ_ann_rain_2000s2.s)
+
+Points_data[, 'hottest_temp_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s1.s, NearestCovs@data$z.TZ_max_temp_2000s1.s)
+Points_data[, 'hottest_temp_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s2.s, NearestCovs@data$z.TZ_max_temp_2000s2.s)
+
+Points_data[, 'max_dryspell_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s1.s, NearestCovs@data$z.TZ_dryspell_2000s1.s)
+Points_data[, 'max_dryspell_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s2.s, NearestCovs@data$z.TZ_dryspell_2000s2.s)
 
 IP_sp <- sp::SpatialPointsDataFrame(coords = Points, data = Points_data, proj4string = proj)
 IP_sp@data$Intercept <- 1
