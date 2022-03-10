@@ -39,7 +39,6 @@ ebird_filtered <- ebird_full %>%
          `EFFORT DISTANCE KM` < 15,
          `DURATION MINUTES` >= 5,
          `DURATION MINUTES` <= 240)   
-print(summary(ebird_filtered))
 
 ebird_filtered <- ebird_filtered %>% 
   group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
@@ -136,9 +135,13 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain = ifelse(date_index == 1, TZ_ann_rain_1980s, TZ_ann_rain_2000s),
-                                hottest_temp = ifelse(date_index == 1, TZ_max_temp_1980s, TZ_max_temp_2000s),
-                                max_dryspell = ifelse(date_index == 1, TZ_dryspell_1980s, TZ_dryspell_2000s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_2000s1.s),
+                                annual_rain_2 = ifelse(date_index == 1, z.TZ_ann_rain_1980s2.s, z.TZ_ann_rain_2000s2.s),
+                                hottest_temp_1 = ifelse(date_index == 1, z.TZ_max_temp_1980s1.s, z.TZ_max_temp_2000s1.s),
+                                hottest_temp_2 = ifelse(date_index == 1, z.TZ_max_temp_1980s2.s, z.TZ_max_temp_2000s2.s),
+                                max_dryspell_1 = ifelse(date_index == 1, z.TZ_dryspell_1980s1.s, z.TZ_dryspell_2000s1.s),
+                                max_dryspell_2 = ifelse(date_index == 1, z.TZ_dryspell_1980s2.s, z.TZ_dryspell_2000s2.s))
+
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
                                    proj4string = crs(proj))
@@ -243,19 +246,15 @@ stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
 integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
 # Not sure if this is correct, but need to somehow add a copy of 'date_index', with different namez
-duplicate_index <- function(new_index){
-      integated_stack[["effects"]][["data"]][[new_index]] <- integated_stack[["effects"]][["data"]][["date_index"]]
-}
 index_list <- paste0("date_index", 1:6)
-tapply(x = index_list, duplicate_index)
-test <- replicate(3, integated_stack[["effects"]][["data"]][["date_index"]])
-integated_stack[["effects"]][["data"]][["date_index2"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
-integated_stack[["effects"]][["ncol"]][["date_index2"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
-integated_stack[["effects"]][["names"]][["date_index2"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
 
-integated_stack[["effects"]][["data"]][["date_index3"]] <- integated_stack[["effects"]][["data"]][["date_index"]]
-integated_stack[["effects"]][["ncol"]][["date_index3"]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
-integated_stack[["effects"]][["names"]][["date_index3"]] <- integated_stack[["effects"]][["names"]][["date_index"]]
+for (i in 1:length(index_list)){
+      new_var <- index_list[i]
+      integated_stack[["effects"]][["data"]][[new_var]] <- integated_stack[["effects"]][["data"]][["date_index"]]
+      integated_stack[["effects"]][["ncol"]][[new_var]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
+      integated_stack[["effects"]][["names"]][[new_var]] <- integated_stack[["effects"]][["names"]][["date_index"]]
+}
+
 
 #Add other covs here
 #Do I add covs like effort to predstack?
@@ -265,12 +264,18 @@ form_1 <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   duration_minutes + effort + 
-  f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
-    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
-  f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
+  f(date_index, annual_rain_1, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +  
+  f(date_index1, annual_rain_2, model="rw1", scale.model=TRUE, constr=FALSE,
+        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   
+  f(date_index2, hottest_temp_1, model="rw1", scale.model=TRUE, constr=FALSE,
+    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   
+  f(date_index3, hottest_temp_2, model="rw1", scale.model=TRUE, constr=FALSE,
+        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+  f(date_index4, max_dryspell_1, model="rw1", scale.model=TRUE, constr=FALSE,
     hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
-  f(date_index3, max_dryspell, model="rw1", scale.model=TRUE, constr=FALSE,
-    hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+  f(date_index5, max_dryspell_2, model="rw1", scale.model=TRUE, constr=FALSE,
+        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 # MODEL 2 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -280,10 +285,6 @@ form_2 <- resp ~ 0 +
   duration_minutes + effort + 
   annual_rain + hottest_temp + 
   date_index +
-  # f(date_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE,
-  #   hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   # Accounts for temporal structure of the covariate
-  # f(date_index2, hottest_temp, model="rw1", scale.model=TRUE, constr=FALSE,
-  #   hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 
@@ -298,7 +299,7 @@ form_2 <- resp ~ 0 +
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
 
-model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
+model <- inla(form_1, family = "binomial", control.family = list(link = "cloglog"), 
               data = inla.stack.data(integated_stack), 
               verbose = FALSE,
               control.predictor = list(A = inla.stack.A(integated_stack), 
@@ -309,7 +310,7 @@ summary(model)
 model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-saveRDS(model, file = "model_form_2.RDS")
+saveRDS(model, file = "model_form1_GAM.RDS")
 model <- readRDS('model_form_2.RDS')
 
 
