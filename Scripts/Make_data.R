@@ -35,18 +35,18 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
 #setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
-setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
-setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
-TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
-TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-
-setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
-
-setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
+# setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Joris_tif_files/Philip_additional_files')
+# setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
+# TZ_annual_median_rain_80_00 <- raster('TZ_annual_median_rain_80_00.tif') %>% mask(., ROI) 
+# TZ_annual_median_rain_00_20 <- raster('TZ_annual_median_rain_00_20.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+# TZ_ERA5_coldest_80_00 <- raster('TZ_ERA5_coldest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+# TZ_ERA5_coldest_00_20 <- raster('TZ_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+# TZ_ERA5_hottest_80_00 <- raster('TZ_ERA5_hottest_temperature_1980_2000.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+# TZ_ERA5_hottest_00_20 <- raster('TZ_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+# 
+# setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
+# 
+# setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
 TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif') %>% mask(., ROI)
 TZ_annual_median_rain_80_00[is.nan(TZ_annual_median_rain_80_00)] <- NA
@@ -79,24 +79,39 @@ for (i in 1:length(names(temporal_variables))){
 }
 
 ## Make some linear combinations:
-lincombs_wrapper <- function(file1, file2, new_var){
-   lc <- inla.make.lincombs(int.eBird = rep(1, 100),  # Change for all
-                            int.atlas = rep(1, 100),
-                            file1 = file1,
-                            file2 = file2)
+lincombs_wrapper <- function(name1, file1, name2, file2, new_var){
+   lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                            atlas_intercept = rep(1, 100),
+                            mget(name1) = file1,  
+                            name2 = file2)
    names(lc) <- paste0(new_var, 1:100)
    assign(new_var, lc, envir = .GlobalEnv)
 }
 
-lincombs_wrapper(z.TZ_max_temp_1980s1.s, z.TZ_max_temp_1980s2.s, "TZ_max_temp_1980s_lc")
-lincombs_wrapper(z.TZ_max_temp_2000s1.s, z.TZ_max_temp_2000s2.s, "TZ_max_temp_2000s_lc")
-
-lincombs_wrapper(z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_1980s2.s, "TZ_ann_rain_1980s_lc")
-lincombs_wrapper(z.TZ_ann_rain_2000s1.s, z.TZ_ann_rain_2000s2.s, "TZ_ann_rain_2000s_lc")
-
-lincombs_wrapper(z.TZ_dryspell_1980s1.s, z.TZ_dryspell_1980s2.s, "TZ_dryspell_1980s_lc")
-lincombs_wrapper(z.TZ_dryspell_2000s1.s, z.TZ_dryspell_2000s2.s, "TZ_dryspell_2000s_lc")
-
+TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           hottest_temp_1 = z.TZ_max_temp_1980s1.s,   
+                                           hottest_temp_2 = z.TZ_max_temp_1980s2.s); names(TZ_max_temp_1980s_lc) <- paste0(TZ_max_temp_1980s_lc, 1:100)
+TZ_max_temp_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           hottest_temp_1 = z.TZ_max_temp_2000s1.s,   
+                                           hottest_temp_2 = z.TZ_max_temp_2000s2.s); names(TZ_max_temp_2000s_lc) <- paste0(TZ_max_temp_2000s_lc, 1:100)
+TZ_ann_rain_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           annual_rain_1 = z.TZ_ann_rain_1980s1.s,   
+                                           annual_rain_2 = z.TZ_ann_rain_1980s2.s); names(TZ_ann_rain_1980s_lc) <- paste0(TZ_ann_rain_1980s_lc, 1:100)
+TZ_ann_rain_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           annual_rain_1 = z.TZ_ann_rain_2000s1.s,   
+                                           annual_rain_2 = z.TZ_max_temp_2000s2.s); names(TZ_ann_rain_2000s_lc) <- paste0(TZ_ann_rain_2000s_lc, 1:100)
+TZ_dryspell_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           max_dryspell_1 = z.TZ_dryspell_1980s1.s,   
+                                           max_dryspell_2 = z.TZ_dryspell_1980s2.s); names(TZ_dryspell_1980s_lc) <- paste0(TZ_dryspell_1980s_lc, 1:100)
+TZ_dryspell_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           atlas_intercept = rep(1, 100),
+                                           max_dryspell_1 = z.TZ_dryspell_2000s1.s,   
+                                           max_dryspell_2 = z.TZ_dryspell_2000s2.s); names(TZ_dryspell_2000s_lc) <- paste0(TZ_dryspell_2000s_lc, 1:100)
 all_lc <- c(mget(ls(pattern = "_lc")))
 
 
@@ -174,4 +189,4 @@ stk.pred <- MakeProjectionGrid(
 setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, all_lc, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
