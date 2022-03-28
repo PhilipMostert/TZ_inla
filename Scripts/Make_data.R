@@ -73,12 +73,32 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_1980s')
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_ann_rain_2000s')
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_1980s')
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_max_temp_2000s')
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_dryspell_1980s')
-temporal_variables <- prepare_GAM(temporal_variables, 'TZ_dryspell_2000s')
+for (i in 1:length(names(temporal_variables))){
+      temporal_variables <- prepare_GAM(temporal_variables, names(temporal_variables)[i])
+      assign("temporal_variables", temporal_variables, envir = .GlobalEnv)
+}
+
+## Make some linear combinations:
+lincombs_wrapper <- function(file1, file2, new_var){
+   lc <- inla.make.lincombs(int.eBird = rep(1, 100),  # Change for all
+                            int.atlas = rep(1, 100),
+                            file1 = file1,
+                            file2 = file2)
+   names(lc) <- paste0(new_var, 1:100)
+   assign(new_var, lc, envir = .GlobalEnv)
+}
+
+lincombs_wrapper(z.TZ_max_temp_1980s1.s, z.TZ_max_temp_1980s2.s, "TZ_max_temp_1980s_lc")
+lincombs_wrapper(z.TZ_max_temp_2000s1.s, z.TZ_max_temp_2000s2.s, "TZ_max_temp_2000s_lc")
+
+lincombs_wrapper(z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_1980s2.s, "TZ_ann_rain_1980s_lc")
+lincombs_wrapper(z.TZ_ann_rain_2000s1.s, z.TZ_ann_rain_2000s2.s, "TZ_ann_rain_2000s_lc")
+
+lincombs_wrapper(z.TZ_dryspell_1980s1.s, z.TZ_dryspell_1980s2.s, "TZ_dryspell_1980s_lc")
+lincombs_wrapper(z.TZ_dryspell_2000s1.s, z.TZ_dryspell_2000s2.s, "TZ_dryspell_2000s_lc")
+
+all_lc <- c(mget(ls(pattern = "_lc")))
+
 
 # Prepare model parameters-----------------------------------------------------------------------------
 # Max.edge based on an estimated range
