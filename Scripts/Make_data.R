@@ -31,6 +31,8 @@ ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>%
 atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
   filter(!is.na(effort))
 
+
+
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
@@ -52,8 +54,6 @@ TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif')
 TZ_annual_median_rain_80_00[is.nan(TZ_annual_median_rain_80_00)] <- NA
 TZ_annual_median_rain_00_20 <- raster('TZbuff_annual_median_rain_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_annual_median_rain_00_20[is.nan(TZ_annual_median_rain_00_20)] <- NA
-# TZ_ERA5_coldest_80_00 <- raster('TZbuff_ERA5_coldest_temperature_1981_1999.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
-# TZ_ERA5_coldest_00_20 <- raster('TZbuff_ERA5_coldest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_80_00 <- raster('TZbuff_ERA5_hottest_temperature_1981_1999.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_80_00[is.nan(TZ_ERA5_hottest_80_00)] <- NA
 TZ_ERA5_hottest_00_20 <- raster('TZbuff_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
@@ -90,29 +90,35 @@ lincombs_wrapper <- function(name1, file1, name2, file2, new_var){
 
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(1, 100),
                                            hottest_temp_1 = z.TZ_max_temp_1980s1.s,   
                                            hottest_temp_2 = z.TZ_max_temp_1980s2.s); names(TZ_max_temp_1980s_lc) <- paste0(TZ_max_temp_1980s_lc, 1:100)
 TZ_max_temp_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(2, 100),
                                            hottest_temp_1 = z.TZ_max_temp_2000s1.s,   
                                            hottest_temp_2 = z.TZ_max_temp_2000s2.s); names(TZ_max_temp_2000s_lc) <- paste0(TZ_max_temp_2000s_lc, 1:100)
 TZ_ann_rain_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(1, 100),
                                            annual_rain_1 = z.TZ_ann_rain_1980s1.s,   
                                            annual_rain_2 = z.TZ_ann_rain_1980s2.s); names(TZ_ann_rain_1980s_lc) <- paste0(TZ_ann_rain_1980s_lc, 1:100)
 TZ_ann_rain_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(2, 100),
                                            annual_rain_1 = z.TZ_ann_rain_2000s1.s,   
                                            annual_rain_2 = z.TZ_max_temp_2000s2.s); names(TZ_ann_rain_2000s_lc) <- paste0(TZ_ann_rain_2000s_lc, 1:100)
 TZ_dryspell_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(1, 100),
                                            max_dryspell_1 = z.TZ_dryspell_1980s1.s,   
                                            max_dryspell_2 = z.TZ_dryspell_1980s2.s); names(TZ_dryspell_1980s_lc) <- paste0(TZ_dryspell_1980s_lc, 1:100)
 TZ_dryspell_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
+                                           date_index = rep(2, 100),
                                            max_dryspell_1 = z.TZ_dryspell_2000s1.s,   
                                            max_dryspell_2 = z.TZ_dryspell_2000s2.s); names(TZ_dryspell_2000s_lc) <- paste0(TZ_dryspell_2000s_lc, 1:100)
-all_lc <- c(mget(ls(pattern = "_lc")))
+all_lc <- c(mget(ls(pattern = "TZ_.*_lc")))
 
 
 # Prepare model parameters-----------------------------------------------------------------------------
