@@ -294,7 +294,7 @@ form_2 <- resp ~ 0 +
 
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
-
+#sub_lc <- all_lc[grep(paste(c("rain", "temp"), collapse="|"), all_lc)]
 model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
               lincomb = all_lc,
               data = inla.stack.data(integated_stack), 
@@ -307,8 +307,27 @@ summary(model)
 model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-saveRDS(model, file = "model_form1_GAM.RDS")
-model <- readRDS('model_form_2.RDS')
+saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
+model <- readRDS('model_lincomb_GAM.RDS')
+
+# Collect model results
+res.bits <- list("summary.lincomb" = model$summary.lincomb, 
+                 "summary.lincomb.derived" = model$summary.lincomb.derived,
+                 "summary.fixed"  = model$summary.fixed,
+                 "summary.hyperpar" = model$summary.hyperpar,
+                 "marginals.fixed" = model$marginals.fixed)
+
+for (i in 1:length(res.bits$marginals.fixed)) {
+      tmp = inla.tmarginal(function(x) x, res.bits$marginals.fixed[[i]]) ## not sure how to fix?
+      plot(tmp, type = "l", xlab = paste("Fixed effect marginal", i, ":", names(res.bits[["marginals.fixed"]])[i]), ylab = "Density")
+      abline(v = 0, lty = 2)
+}
+
+##need to run for plots
+unscale <- function(x, scale.params = sc.p) {
+      return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
+}
+
 
 
 xmean <- list()
