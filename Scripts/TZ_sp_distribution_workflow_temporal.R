@@ -8,8 +8,8 @@ library(raster)
 library(rgdal)
 library(rlang)
 
-setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
+# setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
 
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
@@ -19,8 +19,8 @@ species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astr
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
 
-setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-#setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
+# setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
 estimated_range = 2
@@ -76,7 +76,6 @@ atlas_filtered <- atlas_full %>%
   mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
   dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
-
 atlas_sp <- SpatialPointsDataFrame(
   coords = data.frame(atlas_filtered[, c("Long", "Lat")]),
   data = data.frame(presence = atlas_filtered$presence, effort = atlas_filtered$effort,
@@ -93,10 +92,7 @@ filtered_covs <- temporal_variables[,c('z.TZ_ann_rain_1980s1.s', 'z.TZ_ann_rain_
                                        'z.TZ_max_temp_1980s2.s', 'z.TZ_max_temp_2000s2.s',
                                        'z.TZ_dryspell_1980s1.s', 'z.TZ_dryspell_2000s1.s',
                                        'z.TZ_dryspell_1980s2.s', 'z.TZ_dryspell_2000s2.s')]
-# View(filtered_covs@coords[is.na(filtered_covs@coords[,1]), ] )
-ebird_sp@coords
-
-
+calc_covs <- TRUE
 if (calc_covs) {
   
   Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
@@ -283,7 +279,7 @@ form_2 <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   duration_minutes + effort + 
-  annual_rain + hottest_temp + 
+  annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + max_dryspell_1 + max_dryspell_2 +
   date_index +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
@@ -299,7 +295,8 @@ form_2 <- resp ~ 0 +
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
 
-model <- inla(form_1, family = "binomial", control.family = list(link = "cloglog"), 
+model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
+              lincomb = all_lc,
               data = inla.stack.data(integated_stack), 
               verbose = FALSE,
               control.predictor = list(A = inla.stack.A(integated_stack), 
