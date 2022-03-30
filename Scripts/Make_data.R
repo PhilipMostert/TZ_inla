@@ -118,7 +118,7 @@ TZ_dryspell_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),
                                            date_index = rep(2, 100),
                                            max_dryspell_1 = z.TZ_dryspell_2000s1.s,   
                                            max_dryspell_2 = z.TZ_dryspell_2000s2.s); names(TZ_dryspell_2000s_lc) <- paste0("TZ_dryspell_2000s_lc", 1:100)
-all_lc <- c(mget(ls(pattern = "TZ_.*_lc")))
+all_lc <- c(TZ_max_temp_1980s_lc, TZ_max_temp_2000s_lc, TZ_ann_rain_1980s_lc, TZ_ann_rain_2000s_lc, TZ_dryspell_1980s_lc, TZ_dryspell_2000s_lc)
 
 
 # Prepare model parameters-----------------------------------------------------------------------------
