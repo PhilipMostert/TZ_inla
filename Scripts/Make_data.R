@@ -31,8 +31,6 @@ ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>%
 atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
   filter(!is.na(effort))
 
-
-
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
@@ -50,6 +48,7 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
+# Import and process covariate data
 TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif') %>% mask(., ROI)
 TZ_annual_median_rain_80_00[is.nan(TZ_annual_median_rain_80_00)] <- NA
 TZ_annual_median_rain_00_20 <- raster('TZbuff_annual_median_rain_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
@@ -73,21 +72,13 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
+# Prepare data for a GAM model, keep simple to avoid overfitting (only two knots). Separates out and scales a prediction vector
 for (i in 1:length(names(temporal_variables))){
       temporal_variables <- prepare_GAM(temporal_variables, names(temporal_variables)[i])
       assign("temporal_variables", temporal_variables, envir = .GlobalEnv)
 }
 
-# ## Make some linear combinations:
-# lincombs_wrapper <- function(name1, file1, name2, file2, new_var){
-#    lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-#                             atlas_intercept = rep(1, 100),
-#                             mget(name1) = file1,  
-#                             name2 = file2)
-#    names(lc) <- paste0(new_var, 1:100)
-#    assign(new_var, lc, envir = .GlobalEnv)
-# }
-
+# Make linear combinations, needed to make effect plots
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
                                            date_index = rep(1, 100),
