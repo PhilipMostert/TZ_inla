@@ -72,7 +72,8 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-# Prepare data for a GAM model, keep simple to avoid overfitting (only two knots). Separates out and scales a prediction vector
+# Prepare data for a GAM model, keep simple to avoid overfitting (two spline bases, limited flexibility GAM). 
+# Separates out and scales a prediction vector
 for (i in 1:length(names(temporal_variables))){
       temporal_variables <- prepare_GAM(temporal_variables, names(temporal_variables)[i])
       assign("temporal_variables", temporal_variables, envir = .GlobalEnv)
