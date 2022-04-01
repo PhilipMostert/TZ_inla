@@ -95,6 +95,7 @@ filtered_covs <- temporal_variables[,c('z.TZ_ann_rain_1980s1.s', 'z.TZ_ann_rain_
 calc_covs <- TRUE
 if (calc_covs) {
   
+  # Samples the covariates spatially closest to the occurrence data points    
   Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
   Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
   
@@ -112,9 +113,11 @@ if (calc_covs) {
   
 }
 
+# Add sampled covariates to occurrence data
 ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
+# Combine covariates from different time periods into single variable, different times identified by separate date_index  
 ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_2000s1.s),
                                 annual_rain_2 = ifelse(date_index == 1, z.TZ_ann_rain_1980s2.s, z.TZ_ann_rain_2000s2.s),
                                 hottest_temp_1 = ifelse(date_index == 1, z.TZ_max_temp_1980s1.s, z.TZ_max_temp_2000s1.s),
@@ -122,6 +125,7 @@ ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann
                                 max_dryspell_1 = ifelse(date_index == 1, z.TZ_dryspell_1980s1.s, z.TZ_dryspell_2000s1.s),
                                 max_dryspell_2 = ifelse(date_index == 1, z.TZ_dryspell_1980s2.s, z.TZ_dryspell_2000s2.s))
 
+# Make spdf, add intercept, so model can distinguish eBird presence from Atlas presence
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
                                    data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
                                    proj4string = crs(proj))
@@ -188,20 +192,20 @@ Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
 Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
 Nxy <- round(Nxy.size / Nxy.scale)
 
-
+# Code adapted from 'MakeProjectionGrid' function.
 if(class(Boundary)=="SpatialPolygons") {
-  #create grid based on inla mesh and number of cells specificed by the nxy parameter
+  #create grid based on inla mesh and number of cells specified by the nxy parameter
   projgrid <- inla.mesh.projector(Mesh$mesh, xlim=Boundary@bbox["x",], ylim=Boundary@bbox["y",], dims=Nxy)
   #get the index of points on the grid within the boundary
   xy.in <- !is.na(over(SpatialPoints(projgrid$lattice$loc, proj4string=Boundary@proj4string), Boundary))
 } else {
-  if(ncol(Boundary)<2) stop("TZ_outline should have at least 2 columns")
+  if(ncol(Boundary)<2) stop("Boundary should have at least 2 columns")
   #create grid based on inla mesh
   projgrid <- inla.mesh.projector(Mesh$mesh, xlim=range(Boundary[,1]), ylim=range(Boundary[,2]), dims=Nxy)
   #get the index of points on the grid within the boundary
   xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
 }
-#select only points on the grid that fall within the boudary
+#select only points on the grid that fall within the boundary
 predcoords <- projgrid$lattice$loc[which(xy.in),]
 colnames(predcoords) <- c('Long','Lat')
 Apred <- projgrid$proj$A[which(xy.in), ]
@@ -239,16 +243,16 @@ ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], pre
 stk.predGroup <- inla.stack(list(resp = rep(NA, nrow(NearestCovs@data))),
                             A=list(1,ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, list(i.group = ind$i.group)))
 
-integated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
+integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
 # Not sure if this is correct, but need to somehow add a copy of 'date_index', with different namez
 index_list <- paste0("date_index", 1:6)
 
 for (i in 1:length(index_list)){
       new_var <- index_list[i]
-      integated_stack[["effects"]][["data"]][[new_var]] <- integated_stack[["effects"]][["data"]][["date_index"]]
-      integated_stack[["effects"]][["ncol"]][[new_var]] <- integated_stack[["effects"]][["ncol"]][["date_index"]]
-      integated_stack[["effects"]][["names"]][[new_var]] <- integated_stack[["effects"]][["names"]][["date_index"]]
+      integrated_stack[["effects"]][["data"]][[new_var]] <- integrated_stack[["effects"]][["data"]][["date_index"]]
+      integrated_stack[["effects"]][["ncol"]][[new_var]] <- integrated_stack[["effects"]][["ncol"]][["date_index"]]
+      integrated_stack[["effects"]][["names"]][[new_var]] <- integrated_stack[["effects"]][["names"]][["date_index"]]
 }
 
 
@@ -297,11 +301,11 @@ form_2 <- resp ~ 0 +
 #sub_lc <- all_lc[grep(paste(c("rain", "temp"), collapse="|"), all_lc)]
 model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
               lincomb = all_lc,
-              data = inla.stack.data(integated_stack), 
+              data = inla.stack.data(integrated_stack), 
               verbose = FALSE,
-              control.predictor = list(A = inla.stack.A(integated_stack), 
+              control.predictor = list(A = inla.stack.A(integrated_stack), 
                                        link = NULL, compute = TRUE), 
-              E = inla.stack.data(integated_stack)$e, 
+              E = inla.stack.data(integrated_stack)$e, 
               control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
 summary(model)
 model$summary.random
@@ -313,6 +317,7 @@ model <- readRDS('model_lincomb_GAM.RDS')
 # Collect model results
 res.bits <- list("summary.lincomb" = model$summary.lincomb, 
                  "summary.lincomb.derived" = model$summary.lincomb.derived,
+                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
                  "summary.fixed"  = model$summary.fixed,
                  "summary.hyperpar" = model$summary.hyperpar,
                  "marginals.fixed" = model$marginals.fixed)
@@ -327,6 +332,11 @@ for (i in 1:length(res.bits$marginals.fixed)) {
 unscale <- function(x, scale.params = sc.p) {
       return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
 }
+
+seq <- seq(min(temporal_variables@data[, 'TZ_ann_rain_1980s'], na.rm = TRUE), max(temporal_variables@data[, 'TZ_ann_rain_1980s'], na.rm = TRUE), length = 100)
+
+plot(inla.stack.data(integrated_stack)$annual_rain_1, inla.stack.data(integrated_stack)$presence)
+lines(seq, res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))], lwd = 2, col = rgb(0.7, 0, 0.1))
 
 
 

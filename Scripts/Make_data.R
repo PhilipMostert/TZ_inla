@@ -23,7 +23,7 @@ NTRI <- readOGR("NTRI_outline.shp")  # A small subset
 ROI <- TZ_buffered
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-# Import bird data
+# Import bird data, initial filtering
 ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>% 
   mutate(date = ymd(get("OBSERVATION DATE"))) %>%
   filter(!is.na(`DURATION MINUTES`), !is.na(`EFFORT DISTANCE KM`))
@@ -71,6 +71,7 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
                                'TZ_dryspell_1980s', 'TZ_dryspell_2000s')
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
+temporal_variables <- temporal_variables[!is.na(rowSums(temporal_variables@data)),]
 
 # Prepare data for a GAM model, keep simple to avoid overfitting (two spline bases, limited flexibility GAM). 
 # Separates out and scales a prediction vector
@@ -78,6 +79,44 @@ for (i in 1:length(names(temporal_variables))){
       temporal_variables <- prepare_GAM(temporal_variables, names(temporal_variables)[i])
       assign("temporal_variables", temporal_variables, envir = .GlobalEnv)
 }
+
+prepare_GAM <- function(df, colname){
+      # Create prediction vector, as sequence of 100 values, spanning full range of values. 
+      seq <- seq(min(df@data[, colname], na.rm = TRUE), max(df@data[, colname], na.rm = TRUE), length = 100)
+      # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
+      var.s <- c(scale(c(seq, df@data[, colname])))  
+      # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
+      # Explain:
+      z.var.s <- scale(sortBase(var.s, n.knots = 2))  
+      
+      # Add the two scaled spline bases back to the original dataset. Omit the first 100 values,
+      # this is the prediction vector, not original data
+      df@data[, paste0("z.", colname, "1.s")] <- c(z.var.s[101:NROW(z.var.s), 1])
+      df@data[, paste0("z.", colname, "2.s")] <- c(z.var.s[101:NROW(z.var.s), 2])
+      
+      # Add original, but scaled values back to the dataset
+      df@data[, paste0(colname, ".s")]  <- var.s[-c(1:100)]
+      
+      ## Separate out prediction vectors for the two spline bases, and assign to environment as
+      ## separate objects
+      assign(paste0("z.", colname, "1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
+      assign(paste0("z.", colname, "2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
+      
+      return(df)
+}
+
+N         <- length(vec)
+x.time    <- c(vec)
+zFE       <- cbind(rep(1,N), x.time)
+x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1,
+                                                                         (n.knots+2))], na.rm = TRUE)
+z_K       <- (abs(outer(x.time,x.knots,"-")))^3
+OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
+svd.OMEGA.all  <- svd(OMEGA.all)
+sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
+                                               sqrt(svd.OMEGA.all$d)))
+z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
+
 
 # Make linear combinations, needed to make effect plots
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
