@@ -105,19 +105,6 @@ prepare_GAM <- function(df, colname){
       return(df)
 }
 
-N         <- length(vec)
-x.time    <- c(vec)
-zFE       <- cbind(rep(1,N), x.time)
-x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1,
-                                                                         (n.knots+2))], na.rm = TRUE)
-z_K       <- (abs(outer(x.time,x.knots,"-")))^3
-OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
-svd.OMEGA.all  <- svd(OMEGA.all)
-sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
-                                               sqrt(svd.OMEGA.all$d)))
-z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
-
-
 # Make linear combinations, needed to make effect plots
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
