@@ -61,10 +61,15 @@ TZ_dryspell_80_00 <- raster('TZbuff_median_annual_dryspell_length_1981_1999.tif'
 TZ_dryspell_80_00[is.nan(TZ_dryspell_80_00)] <- NA
 TZ_dryspell_00_20 <- raster('TZbuff_median_annual_dryspell_length_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_dryspell_00_20[is.nan(TZ_dryspell_00_20)] <- NA
+TZ_BG_90_99 <- raster('BG_1990_1999_1000m.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_BG_90_99[is.nan(TZ_BG_90_99)] <- NA
+TZ_BG_10_19 <- raster('BG_2010_19_1000m.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_BG_10_19[is.nan(TZ_BG_10_19)] <- NA
 
 temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, 
                             TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
-                            TZ_dryspell_80_00, TZ_dryspell_00_20)
+                            TZ_dryspell_80_00, TZ_dryspell_00_20,
+                            TZ_BG_90_99, TZ_BG_10_19)
 
 names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
                                'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
