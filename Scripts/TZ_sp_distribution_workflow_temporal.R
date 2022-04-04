@@ -7,9 +7,10 @@ library(lubridate)
 library(raster)
 library(rgdal)
 library(rlang)
+library(inlabru)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/source')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source/')
 
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
@@ -328,15 +329,46 @@ for (i in 1:length(res.bits$marginals.fixed)) {
       abline(v = 0, lty = 2)
 }
 
-##need to run for plots
-unscale <- function(x, scale.params = sc.p) {
-      return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
-}
+plot(integrated_stack[["effects"]][["data"]][["annual_rain_2"]], integrated_stack[["effects"]][["data"]][["presence"]])
 
-seq <- seq(min(temporal_variables@data[, 'TZ_ann_rain_1980s'], na.rm = TRUE), max(temporal_variables@data[, 'TZ_ann_rain_1980s'], na.rm = TRUE), length = 100)
+plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
+plot(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
+plot(res.bits$summary.lincomb.derived[grep("temp", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
+plot(res.bits$summary.lincomb.derived[grep("dry", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
-plot(inla.stack.data(integrated_stack)$annual_rain_1, inla.stack.data(integrated_stack)$presence)
-lines(seq, res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))], lwd = 2, col = rgb(0.7, 0, 0.1))
+plot(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l', ylim = range(-22, 0), lwd = 2)
+lines(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.025quant"], type = 'l')
+lines(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.975quant"], type = 'l')
+
+plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
+
+# From bee example:
+plot(variables$et, variables$TD, axes = TRUE, bty = "l",
+     xlab = "ET",
+     ylab = "Bee species richness", pch = 20, col = rgb(0,0,0,0.05),
+     log = "y")
+box(bty = "o")
+sc.p <- attributes(scale(variables$et))
+xs <- et.seq
+polygon(c(xs, rev(xs)), exp(c(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.025quant"],
+                              rev(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.975quant"]))),
+        border = NA, col = rgb(0.7, 0, 0.1, 0.5))
+lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
+
+#------------------------------------
+# My derived lincombs are for the two separate time periods..
+#------------------------------------
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -359,7 +391,7 @@ spatObj <- crop(spatObj, TZ_outline)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
-library(inlabru)
+
 ggplot() + 
   gg(spatObj) + 
   facet_grid(~ind) +

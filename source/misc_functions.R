@@ -12,6 +12,12 @@ sortBase <- function(vec, n.knots = 2) {
    # Define knot values as the sample quantiles of the covariate, based on the number of knots.
    # With two knots, defines knot values as covariate values at the 33.3% and 66.6% quantile.
    x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1, (n.knots+2))], na.rm = TRUE)
+   
+   #------------------------------------
+   # x.knots: Seem to correspond to 33% and 66% quantiles. Are those the knot values?
+   #------------------------------------
+   
+   
    z_K       <- (abs(outer(x.time,x.knots,"-")))^3
    OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
    svd.OMEGA.all  <- svd(OMEGA.all)
@@ -143,10 +149,22 @@ plot_INLA_fit <- function(model_out){
 prepare_GAM <- function(df, colname){
    # Create prediction vector, as sequence of 100 values, spanning full range of values. 
    seq <- seq(min(df@data[, colname], na.rm = TRUE), max(df@data[, colname], na.rm = TRUE), length = 100)
-   # Add prediction vector to original values, scale all to mean 0 and sd 1
+   # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
    var.s <- c(scale(c(seq, df@data[, colname])))  
    # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
    z.var.s <- scale(sortBase(var.s, n.knots = 2))  
+   
+   #------------------------------------
+   # Why scale twice?
+   #------------------------------------
+   
+   #------------------------------------
+   # If we have 2 knots, wouldn't that mean we fit 3 lines?
+   #------------------------------------
+   
+   #------------------------------------
+   # Shouldn't one line start where the other one ends? So values below knot value should be zero?
+   #------------------------------------
    
    # Add the two scaled spline bases back to the original dataset. Omit the first 100 values,
    # this is the prediction vector, not original data
@@ -165,5 +183,10 @@ prepare_GAM <- function(df, colname){
    
    return(df)
 }
+
+unscale <- function(x, scale.params = sc.p) {
+      return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
+}
+
 
 

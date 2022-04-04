@@ -94,6 +94,10 @@ all.seq <- mget(ls(pattern = "*s.seq"))
 # If intercepts not included, estimates become wrong.If date_index left out, estimates change slightly
 #------------------------------------
 
+#------------------------------------
+# Is this the right place for the linear combinations?
+#------------------------------------
+
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
                                            date_index = rep(1, 100),
