@@ -88,7 +88,12 @@ for (i in 1:length(names(temporal_variables))){
 # Combine the unscaled prediction vectors
 all.seq <- mget(ls(pattern = "*s.seq"))
 
-# Make linear combinations, needed to make effect plots
+# Make linear combinations, needed to make effect plots. Variable names have to match model term names
+
+#------------------------------------
+# If intercepts not included, estimates become wrong.If date_index left out, estimates change slightly
+#------------------------------------
+
 TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
                                            atlas_intercept = rep(1, 100),
                                            date_index = rep(1, 100),
@@ -119,6 +124,8 @@ TZ_dryspell_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),
                                            date_index = rep(2, 100),
                                            max_dryspell_1 = z.TZ_dryspell_2000s1.s,   
                                            max_dryspell_2 = z.TZ_dryspell_2000s2.s); names(TZ_dryspell_2000s_lc) <- paste0("TZ_dryspell_2000s_lc", 1:100)
+
+# Combine all linear combinations, to include in the final model.
 all_lc <- c(TZ_max_temp_1980s_lc, TZ_max_temp_2000s_lc, TZ_ann_rain_1980s_lc, TZ_ann_rain_2000s_lc, TZ_dryspell_1980s_lc, TZ_dryspell_2000s_lc)
 
 
@@ -140,17 +147,10 @@ Mesh <- MakeSpatialRegion(
 )
 
 # Make projection stack stack for background mesh, the prediction stack with NA as response.
-# Projection stack = Integration stack
-#stk.ip <- MakeIntegrationStack(
-#mesh = Mesh$mesh,
-#data = temporal_variables,
-#area = Mesh$w,
-#tag = "ip",
-#InclCoords = TRUE
-#)
-
+# Get mesh triangle centroids
 Points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
 colnames(Points) <- c("LONGITUDE", "LATITUDE")
+# Get value of nearest covariate to each mesh centroids
 NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
 
 Points <- rbind(Points, Points)
@@ -177,23 +177,7 @@ stk.ip <- inla.stack(data=list(resp= NA, e=c(Mesh$w, Mesh$w)), ##Removed the rep
                      A=list(1,projmat.ip), tag='ip',
                      effects=list(IP_sp@data, i = ind))
 
-# Make data for projections
-if(!exists("Nxy.scale")) Nxy.scale <- 0.1  # about 10km resolution
-
-Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
-Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
-Nxy <- round(Nxy.size / Nxy.scale)
-
-# Make stack for projections
-stk.pred <- MakeProjectionGrid(
-  nxy = Nxy,
-  mesh = Mesh$mesh,
-  data = temporal_variables,
-  tag = "pred",
-  boundary = Boundary
-)
-
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip, stk.pred, temporal_variables, TZ_outline, all_lc, all.seq, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip,temporal_variables, TZ_outline, all_lc, all.seq, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
