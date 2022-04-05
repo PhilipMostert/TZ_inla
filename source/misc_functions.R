@@ -185,5 +185,9 @@ unscale <- function(x, scale.params = sc.p) {
       return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
 }
 
+cloglog_inv <- function(x){
+      1-exp(-exp(x))
+}
+
 
 
