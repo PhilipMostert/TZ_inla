@@ -300,7 +300,7 @@ form_2 <- resp ~ 0 +
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
 #sub_lc <- all_lc[grep(paste(c("rain", "temp"), collapse="|"), all_lc)]
-model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), 
+model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
               lincomb = all_lc,
               data = inla.stack.data(integrated_stack), 
               verbose = FALSE,
@@ -313,7 +313,7 @@ model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
 saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
-model <- readRDS('model_lincomb_GAM.RDS')
+# model <- readRDS('model_lincomb_GAM.RDS')
 
 # Collect model results
 res.bits <- list("summary.lincomb" = model$summary.lincomb, 
@@ -329,20 +329,21 @@ for (i in 1:length(res.bits$marginals.fixed)) {
       abline(v = 0, lty = 2)
 }
 
-plot(integrated_stack[["effects"]][["data"]][["annual_rain_2"]], integrated_stack[["effects"]][["data"]][["presence"]])
+# Make effect plots, using linear combinations
+plot(all.seq$TZ_ann_rain.seq, rep(1, NROW(all.seq$TZ_ann_rain.seq)), type = "n")
+plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
 
+     
 plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
-plot(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 plot(res.bits$summary.lincomb.derived[grep("temp", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 plot(res.bits$summary.lincomb.derived[grep("dry", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
-plot(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l', ylim = range(-22, 0), lwd = 2)
-lines(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.025quant"], type = 'l')
-lines(res.bits$summary.lincomb.derived[grep("temp_1980s", rownames(res.bits$summary.lincomb.derived)), "0.975quant"], type = 'l')
 
 plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
 # From bee example:
+# ## Plot here is real data, we use empty box 0-1. Use rug() to still display real data.
+# plot(cov.seq, rep(1, NROW(cov.seq), type = "n")
 plot(variables$et, variables$TD, axes = TRUE, bty = "l",
      xlab = "ET",
      ylab = "Bee species richness", pch = 20, col = rgb(0,0,0,0.05),
@@ -354,11 +355,7 @@ polygon(c(xs, rev(xs)), exp(c(res.bits$summary.lincomb.derived[grep("et", rownam
                               rev(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.975quant"]))),
         border = NA, col = rgb(0.7, 0, 0.1, 0.5))
 lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
-
-#------------------------------------
-# My derived lincombs are for the two separate time periods..
-#------------------------------------
-
+rug()
 
 
 
