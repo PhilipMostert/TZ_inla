@@ -202,6 +202,7 @@ Points_data[, 'max_dryspell_2'] <- ifelse(Points_data$date_index == 1, NearestCo
 Points_data[, 'BG_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_BG_90_991.s, NearestCovs@data$z.TZ_BG_10_191.s)
 Points_data[, 'BG_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_BG_90_992.s, NearestCovs@data$z.TZ_BG_10_192.s)
 
+# Use this as lincombs?
 sequence <- seq(min(Points_data[, 'annual_rain_1'], na.rm = TRUE), max(Points_data[, 'annual_rain_1'], na.rm = TRUE), length = 100)
 var.s <- c(scale(c(sequence, Points_data[, 'annual_rain_1'])))  
 comb_vector <- var.s[1:100]
