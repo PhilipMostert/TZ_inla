@@ -87,12 +87,12 @@ range01 <- function(x){(x - min(x))/(max(x) - min(x))}
 ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
 atlas_sp$effort <- range01(atlas_sp$effort)
 
-filtered_covs <- temporal_variables[,c('z.TZ_ann_rain_1980s1.s', 'z.TZ_ann_rain_2000s1.s', 
-                                       'z.TZ_ann_rain_1980s2.s', 'z.TZ_ann_rain_2000s2.s', 
-                                       'z.TZ_max_temp_1980s1.s', 'z.TZ_max_temp_2000s1.s',
-                                       'z.TZ_max_temp_1980s2.s', 'z.TZ_max_temp_2000s2.s',
-                                       'z.TZ_dryspell_1980s1.s', 'z.TZ_dryspell_2000s1.s',
-                                       'z.TZ_dryspell_1980s2.s', 'z.TZ_dryspell_2000s2.s')]
+filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_2000s_1.s', 
+                                       'TZ_ann_rain_1980s_2.s', 'TZ_ann_rain_2000s_2.s', 
+                                       'TZ_max_temp_1980s_1.s', 'TZ_max_temp_2000s_1.s',
+                                       'TZ_max_temp_1980s_2.s', 'TZ_max_temp_2000s_2.s',
+                                       'TZ_dryspell_1980s_1.s', 'TZ_dryspell_2000s_1.s',
+                                       'TZ_dryspell_1980s_2.s', 'TZ_dryspell_2000s_2.s')]
 calc_covs <- TRUE
 if (calc_covs) {
   
@@ -119,12 +119,12 @@ ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
 ebird_sp <- as(ebird_sp, 'data.frame')
 
 # Combine covariates from different time periods into single variable, different times identified by separate date_index  
-ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_2000s1.s),
-                                annual_rain_2 = ifelse(date_index == 1, z.TZ_ann_rain_1980s2.s, z.TZ_ann_rain_2000s2.s),
-                                hottest_temp_1 = ifelse(date_index == 1, z.TZ_max_temp_1980s1.s, z.TZ_max_temp_2000s1.s),
-                                hottest_temp_2 = ifelse(date_index == 1, z.TZ_max_temp_1980s2.s, z.TZ_max_temp_2000s2.s),
-                                max_dryspell_1 = ifelse(date_index == 1, z.TZ_dryspell_1980s1.s, z.TZ_dryspell_2000s1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, z.TZ_dryspell_1980s2.s, z.TZ_dryspell_2000s2.s))
+ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
+                                annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
+                                hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
+                                hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
+                                max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
+                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s))
 
 # Make spdf, add intercept, so model can distinguish eBird presence from Atlas presence
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
@@ -136,12 +136,12 @@ ebird_sp$presence <- as.numeric(ebird_sp$presence)
 atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
 atlas_sp <- as(atlas_sp, 'data.frame')
 
-atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, z.TZ_ann_rain_1980s1.s, z.TZ_ann_rain_2000s1.s),
-                                annual_rain_2 = ifelse(date_index == 1, z.TZ_ann_rain_1980s2.s, z.TZ_ann_rain_2000s2.s),
-                                hottest_temp_1 = ifelse(date_index == 1, z.TZ_max_temp_1980s1.s, z.TZ_max_temp_2000s1.s),
-                                hottest_temp_2 = ifelse(date_index == 1, z.TZ_max_temp_1980s2.s, z.TZ_max_temp_2000s2.s),
-                                max_dryspell_1 = ifelse(date_index == 1, z.TZ_dryspell_1980s1.s, z.TZ_dryspell_2000s1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, z.TZ_dryspell_1980s2.s, z.TZ_dryspell_2000s2.s))
+atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
+                                annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
+                                hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
+                                hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
+                                max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
+                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s))
 
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
@@ -215,8 +215,6 @@ Apred <- projgrid$proj$A[which(xy.in), ]
 NearestCovs=GetNearestCovariate(points=predcoords, covs=temporal_variables)
 NearestCovs$Intercept=1
 NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
-
-## Need to duplicate data ??
 
 #NewCoords <- do.call(rbind, list(NearestCovs@coords, NearestCovs@coords))
 #NewData <- do.call(rbind, list(NearestCovs@data, NearestCovs@data))
@@ -299,7 +297,6 @@ form_2 <- resp ~ 0 +
 
 ##Things to do::
 #Add annual rain to the stk.pred. Can't do predections without it
-#sub_lc <- all_lc[grep(paste(c("rain", "temp"), collapse="|"), all_lc)]
 model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
               lincomb = all_lc,
               data = inla.stack.data(integrated_stack), 
@@ -332,23 +329,12 @@ for (i in 1:length(res.bits$marginals.fixed)) {
 # Make effect plots, using linear combinations
 plot(all.seq$TZ_ann_rain.seq, rep(1, NROW(all.seq$TZ_ann_rain.seq)), type = "n")
 
-par(mfrow=c(1,2))
-plot(all.seq$TZ_ann_rain.seq, res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))], 
-     lwd = 2 , type = 'l', main = 'cloglog', xlab = 'Annual rainfall', ylab = '')
 plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), 
      lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Annual rainfall', ylab = '')
-dev.off()
-     
-plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
-plot(res.bits$summary.lincomb.derived[grep("temp", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
-plot(res.bits$summary.lincomb.derived[grep("dry", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
-
 plot(all.seq$TZ_max_temp.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("temp", rownames(res.bits$summary.lincomb.derived))]), 
      lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Maximum temperature', ylab = '')
 plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("dry", rownames(res.bits$summary.lincomb.derived))]), 
      lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Dryspell duration', ylab = '')
-
-plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
 # From bee example:
 # ## Plot here is real data, we use empty box 0-1. Use rug() to still display real data.
