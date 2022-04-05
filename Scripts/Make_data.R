@@ -16,7 +16,6 @@ sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data')
 
 # Set Region of Interest
-TZ_outline <- readOGR('TZ_simpler.shp')   # Full extent
 # setwd('~/Documents/TZ_inla_spatial_temporal/Data/New_files_INLA')
 TZ_buffered <- readOGR('TZ_simpler_buffered.shp')
 NTRI <- readOGR("NTRI_outline.shp")  # A small subset 
@@ -77,60 +76,44 @@ names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s',
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 temporal_variables <- temporal_variables[!is.na(rowSums(temporal_variables@data)),]
 
+# Due to the model structure when using form_2, we don't have to separate the different time periods for the linear combinations.
+# Consider them together:
+TZ_ann_rain <- c(temporal_variables@data[["TZ_ann_rain_1980s"]], temporal_variables@data[["TZ_ann_rain_2000s"]])
+TZ_max_temp <- c(temporal_variables@data[["TZ_max_temp_1980s"]], temporal_variables@data[["TZ_max_temp_2000s"]])
+TZ_dryspell <- c(temporal_variables@data[["TZ_dryspell_1980s"]], temporal_variables@data[["TZ_dryspell_2000s"]])
+
+# Make sequences for linear combinations, based on combined covariates data for both time periods
+prepare_lincombs(TZ_ann_rain)
+prepare_lincombs(TZ_max_temp)
+prepare_lincombs(TZ_dryspell)
+
 # Prepare data for a GAM model, keep simple to avoid overfitting (two spline bases, limited flexibility GAM). 
 # Separates out and scales a prediction vector
-
 for (i in 1:length(names(temporal_variables))){
       temporal_variables <- prepare_GAM(temporal_variables, names(temporal_variables)[i])
       assign("temporal_variables", temporal_variables, envir = .GlobalEnv)
 }
 
 # Combine the unscaled prediction vectors
-all.seq <- mget(ls(pattern = "*s.seq"))
+all.seq <- mget(ls(pattern = "TZ_.*.seq"))
 
 # Make linear combinations, needed to make effect plots. Variable names have to match model term names
+# Effect plot scaled according to eBird observations, if only eBird intercept included
+# Covars for two time periods have to be transformed together. 
+# Make seq min to max for all covars values, two time periods combined, add time 1 and time 2 data after that (var.s step)
 
-#------------------------------------
-# If intercepts not included, estimates become wrong.If date_index left out, estimates change slightly
-#------------------------------------
-
-#------------------------------------
-# Is this the right place for the linear combinations?
-#------------------------------------
-
-TZ_max_temp_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(1, 100),
-                                           hottest_temp_1 = z.TZ_max_temp_1980s1.s,   
-                                           hottest_temp_2 = z.TZ_max_temp_1980s2.s); names(TZ_max_temp_1980s_lc) <- paste0("TZ_max_temp_1980s_lc", 1:100)
-TZ_max_temp_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(2, 100),
-                                           hottest_temp_1 = z.TZ_max_temp_2000s1.s,   
-                                           hottest_temp_2 = z.TZ_max_temp_2000s2.s); names(TZ_max_temp_2000s_lc) <- paste0("TZ_max_temp_2000s_lc", 1:100)
-TZ_ann_rain_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(1, 100),
-                                           annual_rain_1 = z.TZ_ann_rain_1980s1.s,   
-                                           annual_rain_2 = z.TZ_ann_rain_1980s2.s); names(TZ_ann_rain_1980s_lc) <- paste0("TZ_ann_rain_1980s_lc", 1:100)
-TZ_ann_rain_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(2, 100),
-                                           annual_rain_1 = z.TZ_ann_rain_2000s1.s,   
-                                           annual_rain_2 = z.TZ_max_temp_2000s2.s); names(TZ_ann_rain_2000s_lc) <- paste0("TZ_ann_rain_2000s_lc", 1:100)
-TZ_dryspell_1980s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(1, 100),
-                                           max_dryspell_1 = z.TZ_dryspell_1980s1.s,   
-                                           max_dryspell_2 = z.TZ_dryspell_1980s2.s); names(TZ_dryspell_1980s_lc) <- paste0("TZ_dryspell_1980s_lc", 1:100)
-TZ_dryspell_2000s_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
-                                           atlas_intercept = rep(1, 100),
-                                           date_index = rep(2, 100),
-                                           max_dryspell_1 = z.TZ_dryspell_2000s1.s,   
-                                           max_dryspell_2 = z.TZ_dryspell_2000s2.s); names(TZ_dryspell_2000s_lc) <- paste0("TZ_dryspell_2000s_lc", 1:100)
+TZ_max_temp_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           hottest_temp_1 = z.TZ_max_temp1.s,   
+                                           hottest_temp_2 = z.TZ_max_temp2.s); names(TZ_max_temp_lc) <- paste0("TZ_max_temp_lc", 1:100)
+TZ_ann_rain_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           annual_rain_1 = z.TZ_ann_rain1.s,   
+                                           annual_rain_2 = z.TZ_ann_rain2.s); names(TZ_ann_rain_lc) <- paste0("TZ_ann_rain_lc", 1:100)
+TZ_dryspell_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),  
+                                           max_dryspell_1 = z.TZ_dryspell1.s,   
+                                           max_dryspell_2 = z.TZ_dryspell2.s); names(TZ_dryspell_lc) <- paste0("TZ_dryspell_lc", 1:100)
 
 # Combine all linear combinations, to include in the final model.
-all_lc <- c(TZ_max_temp_1980s_lc, TZ_max_temp_2000s_lc, TZ_ann_rain_1980s_lc, TZ_ann_rain_2000s_lc, TZ_dryspell_1980s_lc, TZ_dryspell_2000s_lc)
+all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc)
 
 
 # Prepare model parameters-----------------------------------------------------------------------------
@@ -159,14 +142,14 @@ NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
 
 Points <- rbind(Points, Points)
 Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(Points)/2))
-Points_data[, 'annual_rain_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s1.s, NearestCovs@data$z.TZ_ann_rain_2000s1.s)
-Points_data[, 'annual_rain_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s2.s, NearestCovs@data$z.TZ_ann_rain_2000s2.s)
+Points_data[, 'annual_rain_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s1.s, NearestCovs@data$z.TZ_ann_rain_2000s1.s)
+Points_data[, 'annual_rain_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_ann_rain_1980s2.s, NearestCovs@data$z.TZ_ann_rain_2000s2.s)
 
-Points_data[, 'hottest_temp_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s1.s, NearestCovs@data$z.TZ_max_temp_2000s1.s)
-Points_data[, 'hottest_temp_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s2.s, NearestCovs@data$z.TZ_max_temp_2000s2.s)
+Points_data[, 'hottest_temp_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s1.s, NearestCovs@data$z.TZ_max_temp_2000s1.s)
+Points_data[, 'hottest_temp_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_max_temp_1980s2.s, NearestCovs@data$z.TZ_max_temp_2000s2.s)
 
-Points_data[, 'max_dryspell_s1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s1.s, NearestCovs@data$z.TZ_dryspell_2000s1.s)
-Points_data[, 'max_dryspell_s2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s2.s, NearestCovs@data$z.TZ_dryspell_2000s2.s)
+Points_data[, 'max_dryspell_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s1.s, NearestCovs@data$z.TZ_dryspell_2000s1.s)
+Points_data[, 'max_dryspell_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_dryspell_1980s2.s, NearestCovs@data$z.TZ_dryspell_2000s2.s)
 
 IP_sp <- sp::SpatialPointsDataFrame(coords = Points, data = Points_data, proj4string = proj)
 IP_sp@data$Intercept <- 1
