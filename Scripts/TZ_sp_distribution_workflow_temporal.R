@@ -313,7 +313,7 @@ model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
 saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
-# model <- readRDS('model_lincomb_GAM.RDS')
+model <- readRDS('model_all_lc_GAM_form2.RDS')
 
 # Collect model results
 res.bits <- list("summary.lincomb" = model$summary.lincomb, 
