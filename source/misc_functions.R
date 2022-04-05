@@ -149,7 +149,7 @@ prepare_GAM <- function(df, colname){
    # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
    var.s <- c(scale(c(sequence, df@data[, colname])))  
    # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
-   # Scale again since thks is better for INLA model
+   # Scale again, covariates should be scaled for the INLA model
    z.var.s <- scale(sortBase(var.s, n.knots = 2))  
    
    # Add the two scaled spline bases back to the original dataset. Omit the first 100 values,
@@ -168,6 +168,17 @@ prepare_GAM <- function(df, colname){
    assign(paste0(colname, ".seq"), sequence, envir = .GlobalEnv)
    
    return(df)
+}
+
+prepare_lincombs <- function(vector){
+      # Use this function to create sequences for linear combinations, when covariates exist for multiple 
+      # time periods.
+      sequence <- seq(min(vector, na.rm = TRUE), max(vector, na.rm = TRUE), length = 100)
+      var.s <- c(scale(c(sequence, vector)))  
+      z.var.s <- scale(sortBase(var.s, n.knots = 2))  
+      assign(paste0("z.", deparse(substitute(vector)), "1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
+      assign(paste0("z.", deparse(substitute(vector)), "2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
+      assign(paste0(deparse(substitute(vector)), ".seq"), sequence, envir = .GlobalEnv)
 }
 
 unscale <- function(x, scale.params = sc.p) {
