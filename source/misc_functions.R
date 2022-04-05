@@ -142,43 +142,33 @@ plot_INLA_fit <- function(model_out){
    return(p1)
 }
 
-prepare_GAM <- function(df, colname){
-   # Create prediction vector, as sequence of 100 values, spanning full range of values. 
-   # Just for unscaling later.
-   sequence <- seq(min(df@data[, colname], na.rm = TRUE), max(df@data[, colname], na.rm = TRUE), length = 100)
-   # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
-   var.s <- c(scale(c(sequence, df@data[, colname])))  
-   # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
-   # Scale again, covariates should be scaled for the INLA model
-   z.var.s <- scale(sortBase(var.s, n.knots = 2))  
-   
-   # Add the two scaled spline bases back to the original dataset. Omit the first 100 values,
-   # this is the prediction vector, not original data
-   df@data[, paste0("z.", colname, "1.s")] <- c(z.var.s[101:NROW(z.var.s), 1])
-   df@data[, paste0("z.", colname, "2.s")] <- c(z.var.s[101:NROW(z.var.s), 2])
-   
-   # Add original, but scaled values back to the dataset
-   df@data[, paste0( colname, ".s")]  <- var.s[-c(1:100)]
-   
-   ## Separate out prediction vectors for the two spline bases, and assign to environment as
-   ## separate objects
-   assign(paste0("z.", colname, "1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
-   assign(paste0("z.", colname, "2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
-   # Save original, unscaled prediction vector to environment
-   assign(paste0(colname, ".seq"), sequence, envir = .GlobalEnv)
-   
-   return(df)
-}
-
-prepare_lincombs <- function(vector){
-      # Use this function to create sequences for linear combinations, when covariates exist for multiple 
-      # time periods.
+prepare_GAM <- function(df, vector){
+      # Create prediction vector, as sequence of 100 values, spanning full range of values. 
       sequence <- seq(min(vector, na.rm = TRUE), max(vector, na.rm = TRUE), length = 100)
-      var.s <- c(scale(c(sequence, vector)))  
-      z.var.s <- scale(sortBase(var.s, n.knots = 2))  
-      assign(paste0("z.", deparse(substitute(vector)), "1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
-      assign(paste0("z.", deparse(substitute(vector)), "2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
+      # Save this vector, we use it later to label the x axis in the model effect plots
       assign(paste0(deparse(substitute(vector)), ".seq"), sequence, envir = .GlobalEnv)
+      
+      # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
+      var.s <- c(scale(c(sequence, vector)))  
+      # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
+      # Scale again, covariates should be scaled for the INLA model
+      z.var.s <- scale(sortBase(var.s, n.knots = 2))  
+      
+      # Separate out prediction vectors for the two spline bases, and assign to environment as
+      # separate objects. These will be used for linear combinations
+      assign(paste0(deparse(substitute(vector)), "_1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
+      assign(paste0(deparse(substitute(vector)), "_2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
+      
+      # Need to separate out the two time periods, and add to the main data, for the model.
+      # Get the length of each time period vector
+      n_data <- NROW(vector)/2
+      
+      df@data[, paste0(deparse(substitute(vector)), "_1980s_1.s")] <- c(z.var.s[101:(100+n_data), 1])
+      df@data[, paste0(deparse(substitute(vector)), "_1980s_2.s")] <- c(z.var.s[101:(100+n_data), 2])
+      
+      df@data[, paste0(deparse(substitute(vector)), "_2000s_1.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 1])
+      df@data[, paste0(deparse(substitute(vector)), "_2000s_2.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 2])
+      return(df)
 }
 
 unscale <- function(x, scale.params = sc.p) {
