@@ -331,13 +331,22 @@ for (i in 1:length(res.bits$marginals.fixed)) {
 
 # Make effect plots, using linear combinations
 plot(all.seq$TZ_ann_rain.seq, rep(1, NROW(all.seq$TZ_ann_rain.seq)), type = "n")
-plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
 
+par(mfrow=c(1,2))
+plot(all.seq$TZ_ann_rain.seq, res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))], 
+     lwd = 2 , type = 'l', main = 'cloglog', xlab = 'Annual rainfall', ylab = '')
+plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), 
+     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Annual rainfall', ylab = '')
+dev.off()
      
 plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 plot(res.bits$summary.lincomb.derived[grep("temp", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 plot(res.bits$summary.lincomb.derived[grep("dry", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
+plot(all.seq$TZ_max_temp.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("temp", rownames(res.bits$summary.lincomb.derived))]), 
+     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Maximum temperature', ylab = '')
+plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("dry", rownames(res.bits$summary.lincomb.derived))]), 
+     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Dryspell duration', ylab = '')
 
 plot(res.bits$summary.lincomb.derived[grep("rain", rownames(res.bits$summary.lincomb.derived)), "0.5quant"], type = 'l')
 
