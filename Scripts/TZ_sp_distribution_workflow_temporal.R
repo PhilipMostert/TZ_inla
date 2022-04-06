@@ -92,7 +92,10 @@ filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_200
                                        'TZ_max_temp_1980s_1.s', 'TZ_max_temp_2000s_1.s',
                                        'TZ_max_temp_1980s_2.s', 'TZ_max_temp_2000s_2.s',
                                        'TZ_dryspell_1980s_1.s', 'TZ_dryspell_2000s_1.s',
-                                       'TZ_dryspell_1980s_2.s', 'TZ_dryspell_2000s_2.s')]
+                                       'TZ_dryspell_1980s_2.s', 'TZ_dryspell_2000s_2.s',
+                                       'TZ_BG_1980s_1.s', 'TZ_BG_2000s_1.s',
+                                       'TZ_BG_1980s_2.s', 'TZ_BG_2000s_2.s',
+                                       'indicator_90s', 'indicator_2010s')]
 calc_covs <- TRUE
 if (calc_covs) {
   
@@ -124,7 +127,10 @@ ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_r
                                 hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
                                 hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
                                 max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s))
+                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
+                                BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
+                                BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
+                                indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
 
 # Make spdf, add intercept, so model can distinguish eBird presence from Atlas presence
 ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
@@ -141,7 +147,10 @@ atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_r
                                 hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
                                 hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
                                 max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s))
+                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
+                                BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
+                                BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
+                                indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
 
 atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
                                    data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
@@ -282,8 +291,9 @@ form_2 <- resp ~ 0 +
   ebird_intercept +
   atlas_intercept +
   duration_minutes + effort + 
-  annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + max_dryspell_1 + max_dryspell_2 +
-  date_index +
+  annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + 
+  max_dryspell_1 + max_dryspell_2 + BG_1 + BG_2 +
+  date_index + indicator +
   f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 
@@ -327,47 +337,39 @@ for (i in 1:length(res.bits$marginals.fixed)) {
 }
 
 # Make effect plots, using linear combinations
-plot(all.seq$TZ_ann_rain.seq, rep(1, NROW(all.seq$TZ_ann_rain.seq)), type = "n")
-
+par(mfrow = c(2,2))
 plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Annual rainfall', ylab = '')
+     lwd = 2 , type = 'l', main = 'Annual rainfall', ylab = '')
 plot(all.seq$TZ_max_temp.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("temp", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Maximum temperature', ylab = '')
+     lwd = 2 , type = 'l', main = 'Maximum temperature', ylab = '')
 plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("dry", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Back-transformed', xlab = 'Dryspell duration', ylab = '')
+     lwd = 2 , type = 'l', main = 'Dryspell duration', ylab = '')
+plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("BG", rownames(res.bits$summary.lincomb.derived))]), 
+     lwd = 2 , type = 'l', main = 'Bareground cover', ylab = '')
+dev.off()
+
 
 # From bee example:
 # ## Plot here is real data, we use empty box 0-1. Use rug() to still display real data.
 # plot(cov.seq, rep(1, NROW(cov.seq), type = "n")
-plot(variables$et, variables$TD, axes = TRUE, bty = "l",
-     xlab = "ET",
-     ylab = "Bee species richness", pch = 20, col = rgb(0,0,0,0.05),
-     log = "y")
-box(bty = "o")
-sc.p <- attributes(scale(variables$et))
-xs <- et.seq
-polygon(c(xs, rev(xs)), exp(c(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.025quant"],
-                              rev(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.975quant"]))),
-        border = NA, col = rgb(0.7, 0, 0.1, 0.5))
-lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
-rug()
-
-
-
-
-
-
-
-
-
-
-
+# plot(variables$et, variables$TD, axes = TRUE, bty = "l",
+#      xlab = "ET",
+#      ylab = "Bee species richness", pch = 20, col = rgb(0,0,0,0.05),
+#      log = "y")
+# box(bty = "o")
+# sc.p <- attributes(scale(variables$et))
+# xs <- et.seq
+# polygon(c(xs, rev(xs)), exp(c(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.025quant"],
+#                               rev(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.975quant"]))),
+#         border = NA, col = rgb(0.7, 0, 0.1, 0.5))
+# lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
+# rug()
 
 
 xmean <- list()
 for (j in 1:2) {
   xmean[[j]] <- inla.mesh.project(
-    projgrid, model$summary.random$i$mean[ind$i.group == j])
+    projgrid,  model$summary.random$i$mean[ind$i.group == j])
 }
 
 xy.inGroup <- c(xy.in,xy.in)
@@ -382,16 +384,15 @@ spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj,
 spatObj <- crop(spatObj, TZ_outline)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
-
+spatObj@data$mean <-  cloglog_inv(spatObj@data$mean)
 
 ggplot() + 
   gg(spatObj) + 
   facet_grid(~ind) +
   coord_equal() +
-  scale_fill_viridis() +
+  viridis::scale_fill_viridis() +
   theme_void() +
-  theme(legend.position = 'none',
-        plot.title = element_text(hjust = 0.5, vjust = 5)) +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
   ggtitle("Fischer's sparrow-lark distribution")
 
 
