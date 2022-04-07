@@ -366,7 +366,7 @@ par(mfrow = c(1,1))
 # lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
 # rug()
 
-
+model$summary.random$i$mean_inv <- inla.link.cloglog(model$summary.random$i$mean, inverse = TRUE)
 xmean <- list()
 for (j in 1:2) {
   xmean[[j]] <- inla.mesh.project(
@@ -385,12 +385,6 @@ spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj,
 spatObj <- crop(spatObj, TZ_outline)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
-inv.logit <- function(f,a) {
-      a <- (1-2*a)
-      (a*(1+exp(f))+(exp(f)-1))/(2*a*(1+exp(f)))
-} 
-
-spatObj@data$mean <-   inla.link.cloglog(spatObj@data$mean, inverse=TRUE)
 
 ggplot() + 
   gg(spatObj) + 
