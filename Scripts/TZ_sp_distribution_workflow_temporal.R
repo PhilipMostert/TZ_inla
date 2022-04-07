@@ -44,7 +44,7 @@ ebird_filtered <- ebird_full %>%
 ebird_filtered <- ebird_filtered %>% 
   group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
            `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
-  summarise(occurrence = ifelse(species_list[2] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
+  summarise(occurrence = ifelse(species_list[1] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
   ungroup()  %>%
   group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
            `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
@@ -73,7 +73,7 @@ atlas_full <- atlas_full %>%
 
 atlas_filtered <- atlas_full %>% 
   mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-  filter(Scientific == species_list[2]) %>% 
+  filter(Scientific == species_list[1]) %>% 
   mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
   dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
@@ -330,11 +330,11 @@ res.bits <- list("summary.lincomb" = model$summary.lincomb,
                  "summary.hyperpar" = model$summary.hyperpar,
                  "marginals.fixed" = model$marginals.fixed)
 
-for (i in 1:length(res.bits$marginals.fixed)) {
-      tmp = inla.tmarginal(function(x) x, res.bits$marginals.fixed[[i]]) ## not sure how to fix?
-      plot(tmp, type = "l", xlab = paste("Fixed effect marginal", i, ":", names(res.bits[["marginals.fixed"]])[i]), ylab = "Density")
-      abline(v = 0, lty = 2)
-}
+# for (i in 1:length(res.bits$marginals.fixed)) {
+#       tmp = inla.tmarginal(function(x) x, res.bits$marginals.fixed[[i]]) ## not sure how to fix?
+#       plot(tmp, type = "l", xlab = paste("Fixed effect marginal", i, ":", names(res.bits[["marginals.fixed"]])[i]), ylab = "Density")
+#       abline(v = 0, lty = 2)
+# }
 
 # Make effect plots, using linear combinations
 par(mfrow = c(2,2))
@@ -346,7 +346,8 @@ plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5q
      lwd = 2 , type = 'l', main = 'Dryspell duration', ylab = '')
 plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("BG", rownames(res.bits$summary.lincomb.derived))]), 
      lwd = 2 , type = 'l', main = 'Bareground cover', ylab = '')
-dev.off()
+par(mfrow = c(1,1))
+
 
 
 # From bee example:
@@ -384,7 +385,12 @@ spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj,
 spatObj <- crop(spatObj, TZ_outline)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
-spatObj@data$mean <-  cloglog_inv(spatObj@data$mean)
+inv.logit <- function(f,a) {
+      a <- (1-2*a)
+      (a*(1+exp(f))+(exp(f)-1))/(2*a*(1+exp(f)))
+} 
+
+spatObj@data$mean <-   inla.link.cloglog(spatObj@data$mean, inverse=TRUE)
 
 ggplot() + 
   gg(spatObj) + 
@@ -393,7 +399,7 @@ ggplot() +
   viridis::scale_fill_viridis() +
   theme_void() +
   theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-  ggtitle("Fischer's sparrow-lark distribution")
+  ggtitle("Distribution")
 
 
 #saveRDS(model, 'model.RDS')
