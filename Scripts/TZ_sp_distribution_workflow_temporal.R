@@ -382,13 +382,6 @@ dpm <- melt(dp,
             measure.vars = c("pred_mean", "pred_ll", "pred_ul")
 )
 
-TZ_outline_plot <- TZ_outline %>%
-      st_as_sf() %>%
-      st_cast("POLYGON") %>%
-      mutate(area = st_area(.)) %>%
-      arrange(desc(area)) %>%
-      slice(1)
-
 ggplot() + 
       geom_tile(data = dpm, aes(x = x, y = y, fill = value)) +
       labs(x = "", y = "") +
