@@ -193,12 +193,10 @@ projmat_atlas <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(atlas_sp@coords),
                                   group = atlas_sp$date_index)
 
-stk.atlas <- inla.stack(
-      tag = 'atlas',
-      data = list(resp = atlas_sp@data[,'presence']),
-      A = list(1,projmat_atlas),
-      effects = list(atlas_sp@data, i = ind))
-
+stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[,'presence']),
+                        A = list(1,projmat_atlas),
+                        tag = 'atlas',
+                        effects = list(atlas_sp@data, i = ind))
 ##Make predictions grid
 if(!exists("Nxy.scale")) Nxy.scale <- 0.1  # about 10km resolution
 
@@ -244,20 +242,20 @@ NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
 ## Why is effects two lists?
 ## Should I also just have effects = list(ind, Neearestcovs@data) ?
 dp <- rbind(cbind(predcoords, 1), cbind(predcoords, 2))
-coop <- dp[, 1:2]
-groupp <- dp[, 3]
+dp <- data.frame(dp)
+coop <- dp[,1:2]
+groupp <- dp[,3]  # Use this as n.group?
 
 ##Need new Apred
-ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = coop,
-                               n.group = groupp)
+ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], predcoords[,2]),
+                               n.group = 2)
 
 #Things to do here:: replicate NearestCovs@data + coords twice for the 2 time periods
 #                 :: add date_index = 1,2 to data
 #                 :: Do we need a joint intercept?
 
-stk.predGroup <- inla.stack(tag= 'pred.group', 
-                            data = list(resp = NA),
-                            A=list(1, ApredGroup), effects=list(NearestCovs@data, i = ind))
+stk.predGroup <- inla.stack(data = list(resp = rep(NA, nrow(NearestCovs@data))),
+                            A=list(1, ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, i = ind))
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
