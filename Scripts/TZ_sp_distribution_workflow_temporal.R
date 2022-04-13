@@ -160,6 +160,7 @@ atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
 atlas_sp@data[,'atlas_intercept'] <- 1
 atlas_sp$presence <- as.numeric(atlas_sp$presence)
 
+# Build the SPDE model
 spde <- inla.spde2.matern(mesh = Mesh$mesh)
 
 pcspde <- inla.spde2.pcmatern(
@@ -168,21 +169,21 @@ pcspde <- inla.spde2.pcmatern(
       prior.range = c(5, 0.01),   
       prior.sigma = c(2, 0.01))
 
+# Set index for the latent field, taking into account the number of mesh points in the SPDE model, 
+# and the number of time groups.
+# This index does not depend on any data set locations, only SPDE model size and time dimensions
 ind <- inla.spde.make.index(name ='i',
-                            n.spde = spde$n.spde,
+                            n.spde = pcspde$n.spde,
                             n.group = 2)
 
 #projmat <- inla.spde.make.A(Mesh$mesh, as.matrix(ebird_sp@coords)) 
 
 
-##Change this somehow??
+# Make the projector matrix, used to interpolate the random field modeled at the mesh nodes.
+# Uses coordinates of the observed data
 projmat_eBird <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(ebird_sp@coords),
                                   group = ebird_sp$date_index)
-
-# projmat <- inla.spde.make.A(mesh = Mesh$mesh, 
-#                             loc = as.matrix(ebird_sp@coords),
-#                             group = ebird_sp$date_index) 
 
 stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
                         A=list(1,projmat_eBird), 
@@ -254,8 +255,12 @@ ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], pre
 #                 :: add date_index = 1,2 to data
 #                 :: Do we need a joint intercept?
 
-stk.predGroup <- inla.stack(data = list(resp = rep(NA, nrow(NearestCovs@data))),
-                            A=list(1, ApredGroup), tag= 'pred.group', effects=list(NearestCovs@data, i = ind))
+# Make prediction stack. Set up a scenario for the prediction, and include in the main stack
+stk.predGroup <- inla.stack(tag = 'pred.group', 
+                            data = list(resp = rep(NA, nrow(NearestCovs@data))),
+                            A = list(1, ApredGroup),
+                            effects = list(NearestCovs@data, 
+                                         i = ind))
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 
@@ -273,23 +278,20 @@ integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
 #Add other covs here
 #Do I add covs like effort to predstack?
 
+# Define a PC-prior for the temporal autoregressive parameter.
+h.spec <- list(rho = list(prior = 'pc.prec', param = c(4,0.01)))
+
 # MODEL 1 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 form_1 <- resp ~ 0 +
       ebird_intercept +
       atlas_intercept +
       duration_minutes + effort + 
-      f(date_index, annual_rain_1, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +  
-      f(date_index1, annual_rain_2, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   
-      f(date_index2, hottest_temp_1, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +   
-      f(date_index3, hottest_temp_2, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
-      f(date_index4, max_dryspell_1, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
-      f(date_index5, max_dryspell_2, model="rw1", scale.model=TRUE, constr=FALSE,
-        hyper = list(theta = list(prior="pc.prec", param=c(4,0.01)))) +
+      f(date_index, annual_rain_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +  
+      f(date_index1, annual_rain_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +   
+      f(date_index2, hottest_temp_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +   
+      f(date_index3, hottest_temp_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
+      f(date_index4, max_dryspell_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
+      f(date_index5, max_dryspell_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
       f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
 
 # MODEL 2 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -300,7 +302,7 @@ form_2 <- resp ~ 0 +
       annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + 
       max_dryspell_1 + max_dryspell_2 + BG_1 + BG_2 +
       date_index + indicator +
-      f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+      f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1', hyper = h.spec))
 
 
 #form <- resp ~ 0 +
@@ -391,13 +393,13 @@ ggplot() +
 
 
 
-# Plot the posterior random field
+# Plot the posterior random field. This shows us the variation in the spatial effect, as well as
+# spatial dependence.
 
-model$summary.random$i$mean_inv <- inla.link.cloglog(model$summary.random$i$mean, inverse = TRUE)
 xmean <- list()
 for (j in 1:2) {
       xmean[[j]] <- inla.mesh.project(
-            projgrid,  model$summary.random$i$mean_inv[ind$i.group == j])
+            projgrid,  model$summary.random$i$mean[ind$i.group == j])
 }
 
 xy.inGroup <- c(xy.in,xy.in)
@@ -420,7 +422,7 @@ ggplot() +
       viridis::scale_fill_viridis() +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle("Distribution")
+      ggtitle("Posterior random field")
 
 
 #saveRDS(model, 'model.RDS')
