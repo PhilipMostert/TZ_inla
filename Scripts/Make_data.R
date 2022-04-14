@@ -139,53 +139,7 @@ all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc, TZ_BG_lc)
 estimated_range = 2
 max.edge = estimated_range/8
 
-# Create the mesh 
-Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
-                 offset = c(max.edge, max.edge*5), 
-                 cutoff = max.edge/2)
-
-Mesh <- MakeSpatialRegion(
-  data = NULL,
-  bdry = ROI,    
-  meshpars = Meshpars,
-  proj = proj
-)
-
-# Make projection stack stack for background mesh, the prediction stack with NA as response.
-# Get mesh triangle centroids
-Points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
-colnames(Points) <- c("LONGITUDE", "LATITUDE")
-# Get value of nearest covariate to each mesh centroids
-NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
-
-Points <- rbind(Points, Points)
-Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(Points)/2))
-Points_data[, 'annual_rain_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_ann_rain_1980s_1.s, NearestCovs@data$TZ_ann_rain_2000s_1.s)
-Points_data[, 'annual_rain_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_ann_rain_1980s_2.s, NearestCovs@data$TZ_ann_rain_2000s_2.s)
-
-Points_data[, 'hottest_temp_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_max_temp_1980s_1.s, NearestCovs@data$TZ_max_temp_2000s_1.s)
-Points_data[, 'hottest_temp_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_max_temp_1980s_2.s, NearestCovs@data$TZ_max_temp_2000s_2.s)
-
-Points_data[, 'max_dryspell_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_dryspell_1980s_1.s, NearestCovs@data$TZ_dryspell_2000s_1.s)
-Points_data[, 'max_dryspell_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$TZ_dryspell_1980s_2.s, NearestCovs@data$TZ_dryspell_2000s_2.s)
-
-Points_data[, 'BG_1'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_BG_90_991.s, NearestCovs@data$z.TZ_BG_10_191.s)
-Points_data[, 'BG_2'] <- ifelse(Points_data$date_index == 1, NearestCovs@data$z.TZ_BG_90_992.s, NearestCovs@data$z.TZ_BG_10_192.s)
-
-IP_sp <- sp::SpatialPointsDataFrame(coords = Points, data = Points_data, proj4string = proj)
-IP_sp@data$Intercept <- 1
-IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
-projmat.ip <- Matrix::Diagonal(2 * Mesh$mesh$n, rep(1, Mesh$mesh$n * 2)) 
-
-ind <- inla.spde.make.index(name ='i',
-                            n.spde = Mesh$mesh$n,
-                            n.group = 2)
-
-stk.ip <- inla.stack(data=list(resp= NA, e=c(Mesh$w, Mesh$w)), ##Removed the rep(0, ...)?
-                     A=list(1,projmat.ip), tag='ip',
-                     effects=list(IP_sp@data, i = ind))
-
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, Mesh, stk.ip,temporal_variables, TZ_outline, all_lc, all.seq, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, temporal_variables, TZ_outline, all_lc, all.seq, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
