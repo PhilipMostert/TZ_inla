@@ -31,10 +31,11 @@ estimated_range = 2
 max.edge = estimated_range/8
 load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 
-##Set time 1960s -- 1990s as time 1;
-##Set time 2000s as time 2.
+# Set the number of time periods
 n_time_layers = 2
 
+# Import TZ outline without water, used to crop th efinal predictions
+TZ_no_water <- readOGR("TZ_simplified_no_water.shp")
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 1. Data preparation
@@ -282,6 +283,7 @@ Apred <- projgrid$proj$A[which(xy.in), ]
 
 # Construct the prediction data, which is spatial points by temporal layers
 spatial_points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
+spatial_points <- projgrid$lattice$loc[which(xy.in), ]
 colnames(spatial_points) <- c("LONGITUDE", "LATITUDE")
 
 NearestPredCovs <- GetNearestCovariate(points = spatial_points, covs = temporal_variables)
@@ -422,24 +424,31 @@ pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
 
 IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
-IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
-IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
-IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
+IP_df$pred_mean <- cloglog_inv(model$summary.fitted.values[pred.index, "mean"])
+# IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
+# IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
-IP_df_m <- melt(IP_df,
-            id.vars = c("LONGITUDE", "LATITUDE", "date_index"),
-            measure.vars = c("pred_mean", "pred_ll", "pred_ul")
-)
-IP_df_sp <- sp::SpatialPointsDataFrame(coords = data.frame(long = IP_df$LONGITUDE, lat = IP_df$LATITUDE), data = IP_df[, -c(2:3)], proj4string = proj)
-ggplot() +
-      geom_sf(data = IP_df_sp, aes(fill = pred_mean))
+pred_data <- data.frame(mean = IP_df$pred_mean,
+                      ind = rep(c(1,2), each = length(IP_df$pred_mean)/2))
+
+predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
+pred_data_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
+                                             data = pred_data, 
+                                             proj4string = proj)
+water_mask <- raster('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/GEE_files/GEE_export_images/TZ_water_mask.tif')
+
+pred_data_spdf <- crop(pred_data_spdf, TZ_no_water)
+pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 1] <- "1980-1999"
+pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 2] <- "2000-2020"
 
 ggplot() + 
-      geom_point(data = IP_df, aes(x = LONGITUDE, y = LATITUDE, col = pred_mean)) +
-      labs(x = "", y = "") +
-      facet_wrap(. ~ date_index) +
-      theme_bw() +
-      coord_equal()
+      gg(pred_data_spdf) + 
+      facet_grid( ~ ind) +
+      coord_equal() +
+      viridis::scale_fill_viridis("Probability") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
+      ggtitle(paste0(species, " - Predicted occurrence"))
 
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -461,21 +470,23 @@ xmean <- xmean[xy.inGroup]
 
 dataObj <- data.frame(mean = xmean,
                       ind = rep(c(1,2), each = length(xmean)/2))
+dataObj$mean <- cloglog_inv(dataObj$mean)
 
-predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
-spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj, proj4string = proj)
-spatObj <- crop(spatObj, TZ_outline)
+spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
+                                      data = dataObj, 
+                                      proj4string = proj)
+spatObj <- crop(spatObj, TZ_no_water)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
 ggplot() + 
       gg(spatObj) + 
-      facet_grid(~ind) +
+      facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis() +
+      viridis::scale_fill_viridis("Probability") +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle(paste0("Posterior random field - ", species))
+      ggtitle(paste0(species, " - Predicted occurrence"))
 
 
 
