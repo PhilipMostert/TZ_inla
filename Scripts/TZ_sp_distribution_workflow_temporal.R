@@ -18,6 +18,7 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
 species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda')
+species <- species_list[1]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -52,7 +53,7 @@ ebird_filtered <- ebird_full %>%
 ebird_filtered <- ebird_filtered %>% 
       group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
                `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
-      summarise(occurrence = ifelse(species_list[1] %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
+      summarise(occurrence = ifelse(species %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
       ungroup()  %>%
       group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
                `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
@@ -81,7 +82,7 @@ atlas_full <- atlas_full %>%
 
 atlas_filtered <- atlas_full %>% 
       mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-      filter(Scientific == species_list[1]) %>% 
+      filter(Scientific == species) %>% 
       mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
       dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
 
@@ -383,16 +384,8 @@ saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
 # model <- readRDS('model_all_lc_GAM_form2.RDS')
 
 # ------------------------------------------------------------------------------------------------------------------------
-# 11. Model output
+# 11. Effect plots 
 # ------------------------------------------------------------------------------------------------------------------------
-
-# Collect model results
-res.bits <- list("summary.lincomb" = model$summary.lincomb, 
-                 "summary.lincomb.derived" = model$summary.lincomb.derived,
-                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
-                 "summary.fixed"  = model$summary.fixed,
-                 "summary.hyperpar" = model$summary.hyperpar,
-                 "marginals.fixed" = model$marginals.fixed)
 
 # for (i in 1:length(res.bits$marginals.fixed)) {
 #       tmp = inla.tmarginal(function(x) x, res.bits$marginals.fixed[[i]]) ## not sure how to fix?
@@ -412,17 +405,28 @@ plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5q
      lwd = 2 , type = 'l', main = 'Bareground cover', ylab = '')
 par(mfrow = c(1,1))
 
+# Collect model results
+res.bits <- list("summary.lincomb" = model$summary.lincomb, 
+                 "summary.lincomb.derived" = model$summary.lincomb.derived,
+                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
+                 "summary.fixed"  = model$summary.fixed,
+                 "summary.hyperpar" = model$summary.hyperpar,
+                 "marginals.fixed" = model$marginals.fixed)
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+# 12. Prediction plots
+# ------------------------------------------------------------------------------------------------------------------------
+pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
 
-index <- inla.stack.index(stack = integrated_stack, tag = "pred.group")$data
+IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
-dp$pred_mean <- model$summary.fitted.values[index, "mean"]
-dp$pred_ll <- model$summary.fitted.values[index, "0.025quant"]
-dp$pred_ul <- model$summary.fitted.values[index, "0.975quant"]
+IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
+IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
+IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
-dpm <- melt(dp,
-            id.vars = c("x", "y", "time"),
+IP_df_m <- melt(IP_df,
+            id.vars = c("LONGITUDE", "LATITUDE", "date_index"),
             measure.vars = c("pred_mean", "pred_ll", "pred_ul")
 )
 
@@ -434,6 +438,9 @@ ggplot() +
       coord_equal()
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+# 13. Posterior mean of the space-time random field 
+# ------------------------------------------------------------------------------------------------------------------------
 
 # Plot the posterior mean of the space-time random field = the latent field (not directly observed)
 # This shows us the variation in the spatial effect, as well as spatial dependence.
@@ -464,8 +471,7 @@ ggplot() +
       viridis::scale_fill_viridis() +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle("Posterior random field")
+      ggtitle(paste0("Posterior random field - ", species))
 
 
-#saveRDS(model, 'model.RDS')
 
