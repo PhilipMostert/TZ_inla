@@ -32,6 +32,12 @@ load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RDat
 
 ##Set time 1960s -- 1990s as time 1;
 ##Set time 2000s as time 2.
+n_time_layers = 2
+
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 1. Data preparation
+# ------------------------------------------------------------------------------------------------------------------------
 
 ebird_full <- ebird_full %>%
       mutate(date_index = ifelse(date > '2000-01-01',2,1))
@@ -160,8 +166,33 @@ atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
 atlas_sp@data[,'atlas_intercept'] <- 1
 atlas_sp$presence <- as.numeric(atlas_sp$presence)
 
-# Build the SPDE model
-spde <- inla.spde2.matern(mesh = Mesh$mesh)
+# ------------------------------------------------------------------------------------------------------------------------
+# 2. Mesh
+# ------------------------------------------------------------------------------------------------------------------------
+
+# Max.edge based on an estimated range
+estimated_range = 2
+max.edge = estimated_range/8
+
+# Create the mesh 
+Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
+                 offset = c(max.edge, max.edge*5), 
+                 cutoff = max.edge/2)
+
+Mesh <- MakeSpatialRegion(
+      data = NULL,
+      bdry = ROI,    
+      meshpars = Meshpars,
+      proj = proj
+)
+
+plot(Mesh$mesh)
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 3. SPDE model on the mesh
+# ------------------------------------------------------------------------------------------------------------------------
+
+# spde <- inla.spde2.matern(mesh = Mesh$mesh)
 
 pcspde <- inla.spde2.pcmatern(
       mesh = Mesh$mesh,
@@ -169,119 +200,148 @@ pcspde <- inla.spde2.pcmatern(
       prior.range = c(5, 0.01),   
       prior.sigma = c(2, 0.01))
 
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 4. Space-time index set
+# ------------------------------------------------------------------------------------------------------------------------
+
 # Set index for the latent field, taking into account the number of mesh points in the SPDE model, 
 # and the number of time groups.
-# This index does not depend on any data set locations, only SPDE model size and time dimensions
-ind <- inla.spde.make.index(name ='i',
+# This index does not depend on any data set locations, only SPDE model size and time dimensions.
+# A double index, identifying both the spatial location and associated time point. 1 to n.spde index points 
+# for n.group times.
+
+index_set <- inla.spde.make.index(name ='i',
                             n.spde = pcspde$n.spde,
-                            n.group = 2)
+                            n.group = n_time_layers)
+lengths(index_set)
 
-#projmat <- inla.spde.make.A(Mesh$mesh, as.matrix(ebird_sp@coords)) 
 
+# ------------------------------------------------------------------------------------------------------------------------
+# 5. Projection matrices
+# ------------------------------------------------------------------------------------------------------------------------
 
-# Make the projector matrix, used to interpolate the random field modeled at the mesh nodes.
+# Make the projector matrix, which projects the spatio-temporal continuous Gaussian
+# random field from observations to mesh nodes.
 # Uses coordinates of the observed data
+
 projmat_eBird <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(ebird_sp@coords),
                                   group = ebird_sp$date_index)
-
-stk.eBird <- inla.stack(data=list(resp=ebird_sp@data[,'presence']),
-                        A=list(1,projmat_eBird), 
-                        tag='eBird',
-                        effects=list(ebird_sp@data, i = ind))
 
 projmat_atlas <- inla.spde.make.A(mesh = Mesh$mesh,
                                   loc = as.matrix(atlas_sp@coords),
                                   group = atlas_sp$date_index)
 
-stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[,'presence']),
-                        A = list(1,projmat_atlas),
+dim(projmat_eBird)  # Matrix equal to number of observations by number of indices
+dim(projmat_atlas)
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 6. Estimation stacks
+# ------------------------------------------------------------------------------------------------------------------------
+
+stk.eBird <- inla.stack(data = list(resp = ebird_sp@data[, 'presence']),
+                        A = list(1, projmat_eBird), 
+                        tag = 'eBird',
+                        effects = list(ebird_sp@data, i = index_set))
+
+stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
+                        A = list(1, projmat_atlas),
                         tag = 'atlas',
-                        effects = list(atlas_sp@data, i = ind))
-##Make predictions grid
-if(!exists("Nxy.scale")) Nxy.scale <- 0.1  # about 10km resolution
+                        effects = list(atlas_sp@data, i = index_set))
+
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 7. Prediction data
+# ------------------------------------------------------------------------------------------------------------------------
+
+# Contains the locations and times where we want to make predictions. Code for this is adapted from the 
+# 'MakeProjectionGrid' function.
+
+# Set grid locations for predictions
+Nxy.scale <- 0.1  # about 10km resolution
 
 Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
 Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
 Nxy <- round(Nxy.size / Nxy.scale)
 
-# Code adapted from 'MakeProjectionGrid' function.
-if(class(Boundary)=="SpatialPolygons") {
-      #create grid based on inla mesh and number of cells specified by the nxy parameter
-      projgrid <- inla.mesh.projector(Mesh$mesh, xlim=Boundary@bbox["x",], ylim=Boundary@bbox["y",], dims=Nxy)
-      #get the index of points on the grid within the boundary
-      xy.in <- !is.na(over(SpatialPoints(projgrid$lattice$loc, proj4string=Boundary@proj4string), Boundary))
-} else {
-      if(ncol(Boundary)<2) stop("Boundary should have at least 2 columns")
-      #create grid based on inla mesh
-      projgrid <- inla.mesh.projector(Mesh$mesh, xlim=range(Boundary[,1]), ylim=range(Boundary[,2]), dims=Nxy)
-      #get the index of points on the grid within the boundary
-      xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
-}
-#select only points on the grid that fall within the boundary
-predcoords <- projgrid$lattice$loc[which(xy.in),]
+projgrid <- inla.mesh.projector(Mesh$mesh, 
+                                xlim = range(Boundary[, 1]), 
+                                ylim = range(Boundary[, 2]), 
+                                dims = Nxy)
+
+# Get the index of points on the grid within the boundary
+xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
+
+# Select only points on the grid that fall within the boundary
+predcoords <- projgrid$lattice$loc[which(xy.in), ]
 colnames(predcoords) <- c('Long','Lat')
 Apred <- projgrid$proj$A[which(xy.in), ]
 
-# Extract covariates for points, add intercept and coordinates
-NearestCovs=GetNearestCovariate(points=predcoords, covs=temporal_variables)
-NearestCovs$Intercept=1
-NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
 
-#NewCoords <- do.call(rbind, list(NearestCovs@coords, NearestCovs@coords))
-#NewData <- do.call(rbind, list(NearestCovs@data, NearestCovs@data))
+# Construct the prediction data, which is spatial points by temporal layers
+spatial_points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
+colnames(spatial_points) <- c("LONGITUDE", "LATITUDE")
 
-#NearestCovsGroup <- sp::SpatialPointsDataFrame(coords = NewCoords,
-#                                               data = NewData,
-#                                               proj4string = proj)
+NearestPredCovs <- GetNearestCovariate(points = spatial_points, covs = temporal_variables)
 
-#colnames(NearestCovsGroup@coords) <- c('Long', 'Lat')
-# stack the predicted data
-# Need to add an index?
+spatiotemporal_points <- rbind(spatial_points, spatial_points)
+SP_Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(spatiotemporal_points)/2))
+SP_Points_data[, 'annual_rain_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_1.s, NearestPredCovs@data$TZ_ann_rain_2000s_1.s)
+SP_Points_data[, 'annual_rain_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_2.s, NearestPredCovs@data$TZ_ann_rain_2000s_2.s)
 
+SP_Points_data[, 'hottest_temp_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_1.s, NearestPredCovs@data$TZ_max_temp_2000s_1.s)
+SP_Points_data[, 'hottest_temp_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_2.s, NearestPredCovs@data$TZ_max_temp_2000s_2.s)
 
-## Why is effects two lists?
-## Should I also just have effects = list(ind, Neearestcovs@data) ?
-dp <- rbind(cbind(predcoords, 1), cbind(predcoords, 2))
-dp <- data.frame(dp)
-coop <- dp[,1:2]
-groupp <- dp[,3]  # Use this as n.group?
+SP_Points_data[, 'max_dryspell_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_1.s, NearestPredCovs@data$TZ_dryspell_2000s_1.s)
+SP_Points_data[, 'max_dryspell_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_2.s, NearestPredCovs@data$TZ_dryspell_2000s_2.s)
 
-##Need new Apred
-ApredGroup <- inla.spde.make.A(mesh = Mesh$mesh, loc = cbind(predcoords[,1], predcoords[,2]),
-                               n.group = 2)
+SP_Points_data[, 'BG_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_1.s, NearestPredCovs@data$TZ_BG_2000s_1.s)
+SP_Points_data[, 'BG_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_2.s, NearestPredCovs@data$TZ_BG_2000s_2.s)
 
-#Things to do here:: replicate NearestCovs@data + coords twice for the 2 time periods
-#                 :: add date_index = 1,2 to data
-#                 :: Do we need a joint intercept?
+SP_Points_data[, 'indicator'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$indicator_90s, NearestPredCovs@data$indicator_2010s)
 
-# Make prediction stack. Set up a scenario for the prediction, and include in the main stack
-stk.predGroup <- inla.stack(tag = 'pred.group', 
-                            data = list(resp = rep(NA, nrow(NearestCovs@data))),
-                            A = list(1, ApredGroup),
-                            effects = list(NearestCovs@data, 
-                                         i = ind))
+IP_sp <- sp::SpatialPointsDataFrame(coords = spatiotemporal_points, data = SP_Points_data, proj4string = proj)
+IP_sp@data$Intercept <- 1
+IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
+projmat.ip <- Matrix::Diagonal(2 * Mesh$mesh$n, rep(1, Mesh$mesh$n * 2)) 
 
-integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.predGroup, stk.ip)
+# ------------------------------------------------------------------------------------------------------------------------
+# 8. Prediction stack
+# ------------------------------------------------------------------------------------------------------------------------
 
-# Not sure if this is correct, but need to somehow add a copy of 'date_index', with different namez
-# index_list <- paste0("date_index", 1:6)
-# 
-# for (i in 1:length(index_list)){
-#       new_var <- index_list[i]
-#       integrated_stack[["effects"]][["data"]][[new_var]] <- integrated_stack[["effects"]][["data"]][["date_index"]]
-#       integrated_stack[["effects"]][["ncol"]][[new_var]] <- integrated_stack[["effects"]][["ncol"]][["date_index"]]
-#       integrated_stack[["effects"]][["names"]][[new_var]] <- integrated_stack[["effects"]][["names"]][["date_index"]]
-# }
+stk.pred <- inla.stack(tag='pred',
+                       data = list(resp = NA, e = c(Mesh$w, Mesh$w)), 
+                       A = list(1, projmat.ip), 
+                       effects = list(IP_sp@data, 
+                                      i = index_set))
 
 
-#Add other covs here
-#Do I add covs like effort to predstack?
+integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
+
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 9. Model formula
+# ------------------------------------------------------------------------------------------------------------------------
+
+# Not sure if this is correct, but need to somehow add a copy of 'date_index', with different names, for form_1
+index_list <- paste0("date_index", 1:6)
+
+form_1_stack <- integrated_stack
+for (i in 1:length(index_list)){
+      new_var <- index_list[i]
+      form_1_stack[["effects"]][["data"]][[new_var]] <- form_1_stack[["effects"]][["data"]][["date_index"]]
+      form_1_stack[["effects"]][["ncol"]][[new_var]] <- form_1_stack[["effects"]][["ncol"]][["date_index"]]
+      form_1_stack[["effects"]][["names"]][[new_var]] <- form_1_stack[["effects"]][["names"]][["date_index"]]
+}
 
 # Define a PC-prior for the temporal autoregressive parameter.
 h.spec <- list(rho = list(prior = 'pc.prec', param = c(4,0.01)))
 
-# MODEL 1 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# At each time point, spatial locations are linked through the spde.
+# Across time, the process evolves according to an AR(1) process.
+
+# MODEL 1 -----------------------------------------------------------------------------------------------------------------
 form_1 <- resp ~ 0 +
       ebird_intercept +
       atlas_intercept +
@@ -292,9 +352,9 @@ form_1 <- resp ~ 0 +
       f(date_index3, hottest_temp_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
       f(date_index4, max_dryspell_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
       f(date_index5, max_dryspell_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +
-      f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))
+      f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1'))
 
-# MODEL 2 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# MODEL 2 -----------------------------------------------------------------------------------------------------------------
 form_2 <- resp ~ 0 +
       ebird_intercept +
       atlas_intercept +
@@ -305,16 +365,10 @@ form_2 <- resp ~ 0 +
       f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1', hyper = h.spec))
 
 
-#form <- resp ~ 0 +
-#  intercept + 
-#  annual_rain +
-#  f(time_index, annual_rain, model="rw1", scale.model=TRUE, constr=FALSE) +   # Accounts for temporal structure of the covariate
-#  f(i, model = spde, group = i.group, control.group = list(model = 'ar1'))  
-# At each time point, spatial locations are linked through the spde.
-# Across time, the process evolves according to an AR(1) process.
+# ------------------------------------------------------------------------------------------------------------------------
+# 10. INLA model
+# ------------------------------------------------------------------------------------------------------------------------
 
-##Things to do::
-#Add annual rain to the stk.pred. Can't do predections without it
 model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
               lincomb = all_lc,
               data = inla.stack.data(integrated_stack), 
@@ -323,12 +377,14 @@ model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog
                                        link = NULL, compute = TRUE), 
               E = inla.stack.data(integrated_stack)$e, 
               control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
-summary(model)
-model$summary.random
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
 saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
-model <- readRDS('model_all_lc_GAM_form2.RDS')
+# model <- readRDS('model_all_lc_GAM_form2.RDS')
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 11. Model output
+# ------------------------------------------------------------------------------------------------------------------------
 
 # Collect model results
 res.bits <- list("summary.lincomb" = model$summary.lincomb, 
@@ -358,21 +414,7 @@ par(mfrow = c(1,1))
 
 
 
-# From bee example:
-# ## Plot here is real data, we use empty box 0-1. Use rug() to still display real data.
-# plot(cov.seq, rep(1, NROW(cov.seq), type = "n")
-# plot(variables$et, variables$TD, axes = TRUE, bty = "l",
-#      xlab = "ET",
-#      ylab = "Bee species richness", pch = 20, col = rgb(0,0,0,0.05),
-#      log = "y")
-# box(bty = "o")
-# sc.p <- attributes(scale(variables$et))
-# xs <- et.seq
-# polygon(c(xs, rev(xs)), exp(c(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.025quant"],
-#                               rev(res.bits$summary.lincomb.derived[grep("et", rownames(res.bits$summary.lincomb.derived)), "0.975quant"]))),
-#         border = NA, col = rgb(0.7, 0, 0.1, 0.5))
-# lines(xs, exp(res.bits$summary.lincomb.derived$`0.5quant`[grep("et", rownames(res.bits$summary.lincomb.derived))]), lwd = 2, col = rgb(0.7, 0, 0.1))
-# rug()
+
 index <- inla.stack.index(stack = integrated_stack, tag = "pred.group")$data
 
 dp$pred_mean <- model$summary.fitted.values[index, "mean"]
@@ -393,13 +435,13 @@ ggplot() +
 
 
 
-# Plot the posterior random field. This shows us the variation in the spatial effect, as well as
-# spatial dependence.
+# Plot the posterior mean of the space-time random field = the latent field (not directly observed)
+# This shows us the variation in the spatial effect, as well as spatial dependence.
 
 xmean <- list()
 for (j in 1:2) {
       xmean[[j]] <- inla.mesh.project(
-            projgrid,  model$summary.random$i$mean[ind$i.group == j])
+            projgrid,  model$summary.random$i$mean[index_set$i.group == j])
 }
 
 xy.inGroup <- c(xy.in,xy.in)
@@ -407,7 +449,7 @@ xmean <- unlist(xmean)
 xmean <- xmean[xy.inGroup]
 
 dataObj <- data.frame(mean = xmean,
-                      ind = rep(c(1,2),each = length(xmean)/2))
+                      ind = rep(c(1,2), each = length(xmean)/2))
 
 predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
 spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, data = dataObj, proj4string = proj)
