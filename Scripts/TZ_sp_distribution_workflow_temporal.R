@@ -305,18 +305,19 @@ SP_Points_data[, 'indicator'] <- ifelse(SP_Points_data$date_index == 1, NearestP
 IP_sp <- sp::SpatialPointsDataFrame(coords = spatiotemporal_points, data = SP_Points_data, proj4string = proj)
 IP_sp@data$Intercept <- 1
 IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
-projmat.ip <- Matrix::Diagonal(2 * Mesh$mesh$n, rep(1, Mesh$mesh$n * 2)) 
+
+projmat.pred <- inla.spde.make.A(mesh = Mesh$mesh, loc = IP_sp@coords, group = IP_sp@data$date_index)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 8. Prediction stack
 # ------------------------------------------------------------------------------------------------------------------------
 
 stk.pred <- inla.stack(tag='pred',
-                       data = list(resp = NA, e = c(Mesh$w, Mesh$w)), 
-                       A = list(1, projmat.ip), 
+                       data = list(resp = NA), 
+                       A = list(1, projmat.pred), 
                        effects = list(IP_sp@data, 
                                       i = index_set))
-
+# stk.pred[["effects"]][["data"]][["i.group"]] <- stk.pred[["effects"]][["data"]][["date_index"]]
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
 
@@ -393,6 +394,15 @@ saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
 #       abline(v = 0, lty = 2)
 # }
 
+# Collect model results
+res.bits <- list("summary.lincomb" = model$summary.lincomb, 
+                 "summary.lincomb.derived" = model$summary.lincomb.derived,
+                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
+                 "summary.fixed"  = model$summary.fixed,
+                 "summary.hyperpar" = model$summary.hyperpar,
+                 "marginals.fixed" = model$marginals.fixed)
+
+
 # Make effect plots, using linear combinations
 par(mfrow = c(2,2))
 plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), 
@@ -404,15 +414,6 @@ plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5q
 plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("BG", rownames(res.bits$summary.lincomb.derived))]), 
      lwd = 2 , type = 'l', main = 'Bareground cover', ylab = '')
 par(mfrow = c(1,1))
-
-# Collect model results
-res.bits <- list("summary.lincomb" = model$summary.lincomb, 
-                 "summary.lincomb.derived" = model$summary.lincomb.derived,
-                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
-                 "summary.fixed"  = model$summary.fixed,
-                 "summary.hyperpar" = model$summary.hyperpar,
-                 "marginals.fixed" = model$marginals.fixed)
-
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 12. Prediction plots
@@ -429,11 +430,14 @@ IP_df_m <- melt(IP_df,
             id.vars = c("LONGITUDE", "LATITUDE", "date_index"),
             measure.vars = c("pred_mean", "pred_ll", "pred_ul")
 )
+IP_df_sp <- sp::SpatialPointsDataFrame(coords = data.frame(long = IP_df$LONGITUDE, lat = IP_df$LATITUDE), data = IP_df[, -c(2:3)], proj4string = proj)
+ggplot() +
+      geom_sf(data = IP_df_sp, aes(fill = pred_mean))
 
 ggplot() + 
-      geom_tile(data = dpm, aes(x = x, y = y, fill = value)) +
+      geom_point(data = IP_df, aes(x = LONGITUDE, y = LATITUDE, col = pred_mean)) +
       labs(x = "", y = "") +
-      facet_wrap(variable ~ time) +
+      facet_wrap(. ~ date_index) +
       theme_bw() +
       coord_equal()
 
