@@ -1,4 +1,5 @@
 args = commandArgs(trailingOnly = TRUE)
+options(scipen=999)
 
 suppressPackageStartupMessages(library(INLA, quietly=TRUE))
 
@@ -8,8 +9,7 @@ library(raster)
 library(rgdal)
 library(rlang)
 library(inlabru)
-library(sf)
-library(reshape2)
+library(ggthemes)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source/')
@@ -18,7 +18,7 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
 species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda')
-species <- species_list[1]
+species <- species_list[2]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -35,7 +35,7 @@ load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RDat
 n_time_layers = 2
 
 # Import TZ outline without water, used to crop th efinal predictions
-TZ_no_water <- readOGR("TZ_simplified_no_water.shp")
+TZ_no_lakes <- readOGR("TZ_no_lakes.shp")
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 1. Data preparation
@@ -214,8 +214,8 @@ pcspde <- inla.spde2.pcmatern(
 # for n.group times.
 
 index_set <- inla.spde.make.index(name ='i',
-                            n.spde = pcspde$n.spde,
-                            n.group = n_time_layers)
+                                  n.spde = pcspde$n.spde,
+                                  n.group = n_time_layers)
 lengths(index_set)
 
 
@@ -364,7 +364,8 @@ form_2 <- resp ~ 0 +
       atlas_intercept +
       duration_minutes + effort + 
       annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + 
-      max_dryspell_1 + max_dryspell_2 + BG_1 + BG_2 +
+      max_dryspell_1 + max_dryspell_2 + 
+      BG_1 + BG_2 +
       date_index + indicator +
       f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1', hyper = h.spec))
 
@@ -372,7 +373,7 @@ form_2 <- resp ~ 0 +
 # ------------------------------------------------------------------------------------------------------------------------
 # 10. INLA model
 # ------------------------------------------------------------------------------------------------------------------------
-
+# lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
 model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
               lincomb = all_lc,
               data = inla.stack.data(integrated_stack), 
@@ -383,7 +384,7 @@ model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog
               control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
+saveRDS(model, file = paste0(sub(" ", "_", species), "_model_form2.RDS"))
 # model <- readRDS('model_all_lc_GAM_form2.RDS')
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -397,25 +398,46 @@ saveRDS(model, file = "model_all_lc_GAM_form2.RDS")
 # }
 
 # Collect model results
-res.bits <- list("summary.lincomb" = model$summary.lincomb, 
-                 "summary.lincomb.derived" = model$summary.lincomb.derived,
-                 "marginals.lincomb.derived" = model$marginals.lincomb.derived,
-                 "summary.fixed"  = model$summary.fixed,
-                 "summary.hyperpar" = model$summary.hyperpar,
-                 "marginals.fixed" = model$marginals.fixed)
+# res.bits <- list("summary.lincomb" = model$summary.lincomb, 
+#                  "summary.lincomb.derived" = model$summary.lincomb.derived,
+#                  "marginals.lincomb.derived" = model$marginals.lincomb.derived,
+#                  "summary.fixed"  = model$summary.fixed,
+#                  "summary.hyperpar" = model$summary.hyperpar,
+#                  "marginals.fixed" = model$marginals.fixed)
 
+original_values <- data.frame(orig_values = unlist(all.seq)) %>% 
+      mutate(covariate = sub("*.seq\\d+", "", rownames(.)),
+             sequence = as.numeric(gsub("\\D", "", rownames(.))))
+
+
+effect_combs <- data.frame(covariate = sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived)),
+                           sequence = as.numeric(gsub("\\D", "", rownames(model$summary.lincomb.derived))),
+                           quant_05 = cloglog_inv(model$summary.lincomb.derived$`0.5quant`),
+                           quant_0025 = cloglog_inv(model$summary.lincomb.derived$`0.025quant`),
+                           quant_0975 = cloglog_inv(model$summary.lincomb.derived$`0.975quant`))
+
+effect_combs_m <- merge(original_values, effect_combs)
+
+facet_labels <- c(
+      TZ_ann_rain = "Annual rainfall",
+      TZ_BG = "Bareground cover",
+      TZ_dryspell = "Longest dryspell duration",
+      TZ_max_temp = "Hottest summer temperature"
+)
 
 # Make effect plots, using linear combinations
-par(mfrow = c(2,2))
-plot(all.seq$TZ_ann_rain.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("rain", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Annual rainfall', ylab = '')
-plot(all.seq$TZ_max_temp.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("temp", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Maximum temperature', ylab = '')
-plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("dry", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Dryspell duration', ylab = '')
-plot(all.seq$TZ_dryspell.seq, cloglog_inv(res.bits$summary.lincomb.derived$`0.5quant`[grep("BG", rownames(res.bits$summary.lincomb.derived))]), 
-     lwd = 2 , type = 'l', main = 'Bareground cover', ylab = '')
-par(mfrow = c(1,1))
+ggplot(effect_combs_m) +
+      geom_line(aes(x = orig_values, y = quant_05)) +
+      # geom_line(aes(x = orig_values, y = quant_0025), lty = 2, alpha = .5) +
+      # geom_line(aes(x = orig_values, y = quant_0975), lty = 2, alpha = .5) +
+      # geom_rug(data = atlas_filtered, aes(x = )) +
+      facet_wrap(~ covariate, scale = 'free', labeller = as_labeller(facet_labels)) +
+      theme_few() +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      ggtitle(paste0(species, " - Effect plots")) +
+      xlab("Covariate value") +
+      ylab("Probability of occurrence")
+
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 12. Prediction plots
@@ -429,15 +451,14 @@ IP_df$pred_mean <- cloglog_inv(model$summary.fitted.values[pred.index, "mean"])
 # IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
 pred_data <- data.frame(mean = IP_df$pred_mean,
-                      ind = rep(c(1,2), each = length(IP_df$pred_mean)/2))
+                        ind = rep(c(1,2), each = length(IP_df$pred_mean)/2))
 
 predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
 pred_data_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
                                              data = pred_data, 
                                              proj4string = proj)
-water_mask <- raster('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/GEE_files/GEE_export_images/TZ_water_mask.tif')
 
-pred_data_spdf <- crop(pred_data_spdf, TZ_no_water)
+pred_data_spdf <- crop(pred_data_spdf, TZ_no_lakes)
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 1] <- "1980-1999"
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 2] <- "2000-2020"
 
@@ -470,12 +491,12 @@ xmean <- xmean[xy.inGroup]
 
 dataObj <- data.frame(mean = xmean,
                       ind = rep(c(1,2), each = length(xmean)/2))
-dataObj$mean <- cloglog_inv(dataObj$mean)
+#dataObj$mean <- cloglog_inv(dataObj$mean)
 
 spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
                                       data = dataObj, 
                                       proj4string = proj)
-spatObj <- crop(spatObj, TZ_no_water)
+spatObj <- crop(spatObj, TZ_no_lakes)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
@@ -483,10 +504,10 @@ ggplot() +
       gg(spatObj) + 
       facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis("Probability") +
+      viridis::scale_fill_viridis() +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle(paste0(species, " - Predicted occurrence"))
+      ggtitle(paste0(species, " - Random field"))
 
 
 
