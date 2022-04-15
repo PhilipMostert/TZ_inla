@@ -319,7 +319,6 @@ stk.pred <- inla.stack(tag='pred',
                        A = list(1, projmat.pred), 
                        effects = list(IP_sp@data, 
                                       i = index_set))
-# stk.pred[["effects"]][["data"]][["i.group"]] <- stk.pred[["effects"]][["data"]][["date_index"]]
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
 
