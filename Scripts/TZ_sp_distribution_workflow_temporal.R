@@ -384,7 +384,7 @@ model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
 saveRDS(model, file = paste0(sub(" ", "_", species), "_model_form2.RDS"))
-# model <- readRDS('model_all_lc_GAM_form2.RDS')
+#model <- readRDS(paste0(sub(" ", "_", species), "_model_form2.RDS"))
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 11. Effect plots 
@@ -408,12 +408,13 @@ original_values <- data.frame(orig_values = unlist(all.seq)) %>%
       mutate(covariate = sub("*.seq\\d+", "", rownames(.)),
              sequence = as.numeric(gsub("\\D", "", rownames(.))))
 
-
+# Make effects dataframe. Add constant equally to all derived values, to boost effects
+scale_params <- mean(model$summary.lincomb.derived$`0.5quant`)
 effect_combs <- data.frame(covariate = sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived)),
                            sequence = as.numeric(gsub("\\D", "", rownames(model$summary.lincomb.derived))),
-                           quant_05 = cloglog_inv(model$summary.lincomb.derived$`0.5quant`),
-                           quant_0025 = cloglog_inv(model$summary.lincomb.derived$`0.025quant`),
-                           quant_0975 = cloglog_inv(model$summary.lincomb.derived$`0.975quant`))
+                           quant_05 = cloglog_inv((model$summary.lincomb.derived$`0.5quant` - scale_params) - 0.36),
+                           quant_0025 = cloglog_inv((model$summary.lincomb.derived$`0.025quant` - scale_params) - 0.36),
+                           quant_0975 = cloglog_inv((model$summary.lincomb.derived$`0.975quant` - scale_params) - 0.36))
 
 effect_combs_m <- merge(original_values, effect_combs)
 
@@ -427,8 +428,8 @@ facet_labels <- c(
 # Make effect plots, using linear combinations
 ggplot(effect_combs_m) +
       geom_line(aes(x = orig_values, y = quant_05)) +
-      # geom_line(aes(x = orig_values, y = quant_0025), lty = 2, alpha = .5) +
-      # geom_line(aes(x = orig_values, y = quant_0975), lty = 2, alpha = .5) +
+      geom_line(aes(x = orig_values, y = quant_0025), lty = 2, alpha = .5) +
+      geom_line(aes(x = orig_values, y = quant_0975), lty = 2, alpha = .5) +
       # geom_rug(data = atlas_filtered, aes(x = )) +
       facet_wrap(~ covariate, scale = 'free', labeller = as_labeller(facet_labels)) +
       theme_few() +
@@ -445,7 +446,8 @@ pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
 
 IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
-IP_df$pred_mean <- cloglog_inv(model$summary.fitted.values[pred.index, "mean"])
+IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
+IP_df$pred_mean <- cloglog_inv(IP_df$pred_mean)
 # IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
 # IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
@@ -509,4 +511,6 @@ ggplot() +
       ggtitle(paste0(species, " - Random field"))
 
 
+
+hist(integrated_stack[["effects"]][["data"]][["hottest_temp_1"]])
 
