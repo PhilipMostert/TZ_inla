@@ -17,8 +17,8 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
-species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda')
-species <- species_list[2]
+species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis')
+species <- species_list[5]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -199,8 +199,8 @@ plot(Mesh$mesh)
 pcspde <- inla.spde2.pcmatern(
       mesh = Mesh$mesh,
       alpha = 2,
-      prior.range = c(5, 0.01),   
-      prior.sigma = c(2, 0.01))
+      prior.range = c(10, 0.01),   
+      prior.sigma = c(1, 0.01))
 
 
 # ------------------------------------------------------------------------------------------------------------------------

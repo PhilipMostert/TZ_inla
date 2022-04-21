@@ -133,13 +133,7 @@ TZ_BG_lc       <- inla.make.lincombs(ebird_intercept = rep(1, 100),
 # Combine all linear combinations, to include in the final model.
 all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc, TZ_BG_lc)
 
-
-# Prepare model parameters-----------------------------------------------------------------------------
-# Max.edge based on an estimated range
-estimated_range = 2
-max.edge = estimated_range/8
-
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
-save(proj, ROI, ebird_full, atlas_full, temporal_variables, TZ_outline, all_lc, all.seq, file = paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
+save(proj, ROI, ebird_full, atlas_full, temporal_variables, TZ_outline, all_lc, all.seq, file = "TZ_INLA_model_file_temporal.RData")
