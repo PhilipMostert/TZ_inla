@@ -1,3 +1,5 @@
+rm(list = ls())
+
 args = commandArgs(trailingOnly = TRUE)
 options(scipen=999)
 
@@ -10,6 +12,7 @@ library(rgdal)
 library(rlang)
 library(inlabru)
 library(ggthemes)
+library(gridExtra)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source/')
@@ -17,195 +20,218 @@ setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapt
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
 sapply(list.files(pattern="*.R"),source,.GlobalEnv)
 
-species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis')
-species <- species_list[5]
-#species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
-#                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
-#                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
-
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
+load("TZ_INLA_model_file_temporal.RData")
+
+# ------------------------------------------------------------------------------------------------------------------------
+# Global variables
+# ------------------------------------------------------------------------------------------------------------------------
+
+# Species choices
+species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis')
+species <- species_list[1]
+#species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
+#                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
+#                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
+
+# Mesh parameters
 estimated_range = 2
 max.edge = estimated_range/8
-load(paste0("TZ_INLA_model_file_temporal_E", round(max.edge, digits = 3), ".RData"))
 
-# Set the number of time periods
-n_time_layers = 2
+# Set priors for random elements of the model. 
+# 
+# Range: Distance at which spatial autocorrelation is small, or practical range.
+# If prior.range = c(10, 0.01), this means that the probability that the range 
+# of the spatial effect is less than 10 degrees is presumed to be very small.
+# Range defines how far you need to go for two points to be independent, the κ parameter.
+# A smaller value gives a rougher texture to the spde, a larger one a smoother.
+# These priors shrink the spatial model towards the base model (without a 
+# spatial term).
+# Sigma: Variation in the spatial effect (how variable is the field from a point to the next, the δ parameter)
+# PC priors are weakly informative. They are set directly on the distance from the base model, making it more 
+# or less flexible.
 
-# Import TZ outline without water, used to crop th efinal predictions
-TZ_no_lakes <- readOGR("TZ_no_lakes.shp")
+
+# diff(range(Mesh$mesh$loc[, 1]))/2
+# sd(integrated_stack$effects$data$presence, na.rm = T)/10
+# prior.range = c(10 * max.edge, 0.5)
+
+# Ploceus nigricollis
+# prior_range = c(2.5, 0.05)  # Unlikely that un-measured covariates operate at less than ~280km
+# prior_sigma = c(1, 0.05)
+# rho_params = c(4, 0.01)
+
+prior_range = c(0.25, 0.05)  
+prior_sigma = c(1, 0.05)
+rho_params = c(4, 0.01)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 1. Data preparation
 # ------------------------------------------------------------------------------------------------------------------------
-
-ebird_full <- ebird_full %>%
-      mutate(date_index = ifelse(date > '2000-01-01',2,1))
-
-ebird_filtered <- ebird_full %>% 
-      filter(APPROVED == 1,  # Only keep reviewed and approved records
-             `ALL SPECIES REPORTED` == 1,           # Only keep complete checklists
-             `EFFORT DISTANCE KM` < 15,
-             `DURATION MINUTES` >= 5,
-             `DURATION MINUTES` <= 240)   
-
-ebird_filtered <- ebird_filtered %>% 
-      group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
-               `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
-      summarise(occurrence = ifelse(species %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
-      ungroup()  %>%
-      group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
-               `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
-      slice_head() %>%    # Where duplicate checklists occurred, keep only the first
-      ungroup() %>% 
-      rename(duration_minutes = `DURATION MINUTES`,
-             effort_distance_km = `EFFORT DISTANCE KM`,
-             number_observers = `NUMBER OBSERVERS`)
-
-ebird_sp <- SpatialPointsDataFrame(
-      coords = ebird_filtered[, c("LONGITUDE", "LATITUDE")],
-      data = data.frame(presence = ebird_filtered$occurrence, duration_minutes = ebird_filtered$duration_minutes,
-                        effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
-      proj4string = crs(proj))
-
-# Only include eBird data points for Tanzania
-# Get intersecting points
-in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
-
-# Only keep intersecting points in original spdf
-ebird_sp <- ebird_sp[in_sp, ]
-
-atlas_full <- atlas_full %>%
-      filter(time_period != 'x') %>%
-      mutate(date_index = ifelse(time_period == '20s',2,1))
-
-atlas_filtered <- atlas_full %>% 
-      mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
-      filter(Scientific == species) %>% 
-      mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
-      dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
-
-atlas_sp <- SpatialPointsDataFrame(
-      coords = data.frame(atlas_filtered[, c("Long", "Lat")]),
-      data = data.frame(presence = atlas_filtered$presence, effort = atlas_filtered$effort,
-                        date_index = atlas_filtered$date_index),
-      proj4string = crs(proj))
-
-range01 <- function(x){(x - min(x))/(max(x) - min(x))}
-ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
-atlas_sp$effort <- range01(atlas_sp$effort)
-
-filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_2000s_1.s', 
-                                       'TZ_ann_rain_1980s_2.s', 'TZ_ann_rain_2000s_2.s', 
-                                       'TZ_max_temp_1980s_1.s', 'TZ_max_temp_2000s_1.s',
-                                       'TZ_max_temp_1980s_2.s', 'TZ_max_temp_2000s_2.s',
-                                       'TZ_dryspell_1980s_1.s', 'TZ_dryspell_2000s_1.s',
-                                       'TZ_dryspell_1980s_2.s', 'TZ_dryspell_2000s_2.s',
-                                       'TZ_BG_1980s_1.s', 'TZ_BG_2000s_1.s',
-                                       'TZ_BG_1980s_2.s', 'TZ_BG_2000s_2.s',
-                                       'indicator_90s', 'indicator_2010s')]
-calc_covs <- TRUE
-if (calc_covs) {
+if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
+      ebird_full <- ebird_full %>%
+            mutate(date_index = ifelse(date > '2000-01-01',2,1))
       
+      ebird_filtered <- ebird_full %>% 
+            filter(APPROVED == 1,  # Only keep reviewed and approved records
+                   `ALL SPECIES REPORTED` == 1,           # Only keep complete checklists
+                   `EFFORT DISTANCE KM` < 15,
+                   `DURATION MINUTES` >= 5,
+                   `DURATION MINUTES` <= 240)   
+      
+      ebird_filtered <- ebird_filtered %>% 
+            group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
+                     `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`, date_index) %>% 
+            summarise(occurrence = ifelse(species %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
+            ungroup()  %>%
+            group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
+                     `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
+            slice_head() %>%    # Where duplicate checklists occurred, keep only the first
+            ungroup() %>% 
+            rename(duration_minutes = `DURATION MINUTES`,
+                   effort_distance_km = `EFFORT DISTANCE KM`,
+                   number_observers = `NUMBER OBSERVERS`)
+      
+      ebird_sp <- SpatialPointsDataFrame(
+            coords = ebird_filtered[, c("LONGITUDE", "LATITUDE")],
+            data = data.frame(presence = ebird_filtered$occurrence, duration_minutes = ebird_filtered$duration_minutes,
+                              effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
+            proj4string = crs(proj))
+      
+      # Only include eBird data points for Tanzania
+      # Get intersecting points
+      in_sp <- rgeos::gIntersection(ebird_sp, TZ_outline)
+      
+      # Only keep intersecting points in original spdf
+      ebird_sp <- ebird_sp[in_sp, ]
+      
+      atlas_full <- atlas_full %>%
+            filter(time_period != 'x') %>%
+            mutate(date_index = ifelse(time_period == '20s',2,1))
+      
+      atlas_filtered <- atlas_full %>% 
+            mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
+            filter(Scientific == species) %>% 
+            mutate(presence = ifelse(occurrence == 1, TRUE, FALSE)) %>% 
+            dplyr::select(-V1); if(is_empty(atlas_filtered$presence)){print("ERROR: No Atlas data available")}
+      
+      atlas_sp <- SpatialPointsDataFrame(
+            coords = data.frame(atlas_filtered[, c("Long", "Lat")]),
+            data = data.frame(presence = atlas_filtered$presence, effort = atlas_filtered$effort,
+                              date_index = atlas_filtered$date_index),
+            proj4string = crs(proj))
+      
+      range01 <- function(x){(x - min(x))/(max(x) - min(x))}
+      ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
+      atlas_sp$effort <- range01(atlas_sp$effort)
+      
+      filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_2000s_1.s', 
+                                             'TZ_ann_rain_1980s_2.s', 'TZ_ann_rain_2000s_2.s', 
+                                             'TZ_max_temp_1980s_1.s', 'TZ_max_temp_2000s_1.s',
+                                             'TZ_max_temp_1980s_2.s', 'TZ_max_temp_2000s_2.s',
+                                             'TZ_dryspell_1980s_1.s', 'TZ_dryspell_2000s_1.s',
+                                             'TZ_dryspell_1980s_2.s', 'TZ_dryspell_2000s_2.s',
+                                             'TZ_BG_1980s_1.s', 'TZ_BG_2000s_1.s',
+                                             'TZ_BG_1980s_2.s', 'TZ_BG_2000s_2.s',
+                                             'indicator_90s', 'indicator_2010s')]
+      
+            
       # Samples the covariates spatially closest to the occurrence data points    
       Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
       Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
       
       
+      # Add sampled covariates to occurrence data
+      ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
+      ebird_sp <- as(ebird_sp, 'data.frame')
+      
+      # Combine covariates from different time periods into single variable, different times identified by separate date_index  
+      ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
+                                      annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
+                                      hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
+                                      hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
+                                      max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
+                                      max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
+                                      BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
+                                      BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
+                                      indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
+      
+      # Make spdf, add intercept, so model can distinguish eBird presence from Atlas presence
+      ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
+                                         data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
+                                         proj4string = crs(proj))
+      ebird_sp@data[, 'ebird_intercept'] <- 1
+      ebird_sp$presence <- as.numeric(ebird_sp$presence)
+      
+      atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
+      atlas_sp <- as(atlas_sp, 'data.frame')
+      
+      atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
+                                      annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
+                                      hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
+                                      hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
+                                      max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
+                                      max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
+                                      BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
+                                      BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
+                                      indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
+      
+      atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
+                                         data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
+                                         proj4string = crs(proj))
+      atlas_sp@data[,'atlas_intercept'] <- 1
+      atlas_sp$presence <- as.numeric(atlas_sp$presence)
+      save(ebird_sp, atlas_sp, file = paste0(gsub(" ", "_", species), "_model_data.RData"))
+
 } else {
       
-      #Nearest_covs_ebird <- readRDS('/Users/philism/Downloads/Nearest_covs_ebird.RDS')
-      #Nearest_covs_atlas <-  readRDS('/Users/philism/Downloads/Nearest_covs_atlas.RDS')
-      setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Covariate_data')
-      Nearest_covs_ebird <- readRDS("Nearest_covs_ebird.RDS")
-      Nearest_covs_atlas <- readRDS("Nearest_covs_atlas.RDS")
-      # Add covariates to the bird data 
-      ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
-      atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
-      
+      # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Covariate_data')
+      load(paste0(gsub(" ", "_", species), "_model_data.RData"))
 }
-
-# Add sampled covariates to occurrence data
-ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
-ebird_sp <- as(ebird_sp, 'data.frame')
-
-# Combine covariates from different time periods into single variable, different times identified by separate date_index  
-ebird_sp <- ebird_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
-                                annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
-                                hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
-                                hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
-                                max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
-                                BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
-                                BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
-                                indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
-
-# Make spdf, add intercept, so model can distinguish eBird presence from Atlas presence
-ebird_sp <- SpatialPointsDataFrame(coords = ebird_sp[, c("LONGITUDE", "LATITUDE")],
-                                   data = ebird_sp[, !names(ebird_sp)%in%c('LONGITUDE', 'LATITUDE')],
-                                   proj4string = crs(proj))
-ebird_sp@data[, 'ebird_intercept'] <- 1
-ebird_sp$presence <- as.numeric(ebird_sp$presence)
-
-atlas_sp@data[, names(Nearest_covs_atlas@data)] <- Nearest_covs_atlas@data
-atlas_sp <- as(atlas_sp, 'data.frame')
-
-atlas_sp <- atlas_sp %>% mutate(annual_rain_1 = ifelse(date_index == 1, TZ_ann_rain_1980s_1.s, TZ_ann_rain_2000s_1.s),
-                                annual_rain_2 = ifelse(date_index == 1, TZ_ann_rain_1980s_2.s, TZ_ann_rain_2000s_2.s),
-                                hottest_temp_1 = ifelse(date_index == 1, TZ_max_temp_1980s_1.s, TZ_max_temp_2000s_1.s),
-                                hottest_temp_2 = ifelse(date_index == 1, TZ_max_temp_1980s_2.s, TZ_max_temp_2000s_2.s),
-                                max_dryspell_1 = ifelse(date_index == 1, TZ_dryspell_1980s_1.s, TZ_dryspell_2000s_1.s),
-                                max_dryspell_2 = ifelse(date_index == 1, TZ_dryspell_1980s_2.s, TZ_dryspell_2000s_2.s),
-                                BG_1 = ifelse(date_index == 1, TZ_BG_1980s_1.s, TZ_BG_2000s_1.s),
-                                BG_2 = ifelse(date_index == 1, TZ_BG_1980s_2.s, TZ_BG_2000s_2.s),
-                                indicator = ifelse(date_index == 1, indicator_90s, indicator_2010s))
-
-atlas_sp <- SpatialPointsDataFrame(coords = atlas_sp[, c('Long', 'Lat')],
-                                   data = atlas_sp[, !names(atlas_sp)%in%c('Long','Lat')],
-                                   proj4string = crs(proj))
-atlas_sp@data[,'atlas_intercept'] <- 1
-atlas_sp$presence <- as.numeric(atlas_sp$presence)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 2. Mesh
 # ------------------------------------------------------------------------------------------------------------------------
 
-# Max.edge based on an estimated range
-estimated_range = 2
-max.edge = estimated_range/8
+if (!file.exists(paste0("mesh_E", max.edge,".RData"))) {
+      Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
+                       offset = c(max.edge, max.edge*5), 
+                       cutoff = max.edge/2)
 
-# Create the mesh 
-Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
-                 offset = c(max.edge, max.edge*5), 
-                 cutoff = max.edge/2)
-
-Mesh <- MakeSpatialRegion(
-      data = NULL,
-      bdry = ROI,    
-      meshpars = Meshpars,
-      proj = proj
-)
-
-plot(Mesh$mesh)
+      Mesh <- MakeSpatialRegion(
+            data = NULL,
+            bdry = ROI,    
+            meshpars = Meshpars,
+            proj = proj
+      )
+      
+      plot(Mesh$mesh)
+      save(Mesh, file = paste0("mesh_E", max.edge,".RData"))
+} else {
+      load(paste0("mesh_E", max.edge,".RData"))
+}
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 3. SPDE model on the mesh
 # ------------------------------------------------------------------------------------------------------------------------
 
-# spde <- inla.spde2.matern(mesh = Mesh$mesh)
-
+# Use Penalized Complexity prior, this determines the smoothness of the spatial effect.
 pcspde <- inla.spde2.pcmatern(
       mesh = Mesh$mesh,
       alpha = 2,
-      prior.range = c(10, 0.01),   
-      prior.sigma = c(1, 0.01))
+      prior.range = prior_range,   
+      prior.sigma = prior_sigma)
 
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 4. Space-time index set
 # ------------------------------------------------------------------------------------------------------------------------
+
+# Set the number of time periods
+n_time_layers = 2
 
 # Set index for the latent field, taking into account the number of mesh points in the SPDE model, 
 # and the number of time groups.
@@ -260,55 +286,61 @@ stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
 # Contains the locations and times where we want to make predictions. Code for this is adapted from the 
 # 'MakeProjectionGrid' function.
 
-# Set grid locations for predictions
-Nxy.scale <- 0.1  # about 10km resolution
-
-Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
-Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
-Nxy <- round(Nxy.size / Nxy.scale)
-
-projgrid <- inla.mesh.projector(Mesh$mesh, 
-                                xlim = range(Boundary[, 1]), 
-                                ylim = range(Boundary[, 2]), 
-                                dims = Nxy)
-
-# Get the index of points on the grid within the boundary
-xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
-
-# Select only points on the grid that fall within the boundary
-predcoords <- projgrid$lattice$loc[which(xy.in), ]
-colnames(predcoords) <- c('Long','Lat')
-Apred <- projgrid$proj$A[which(xy.in), ]
-
-
-# Construct the prediction data, which is spatial points by temporal layers
-spatial_points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
-spatial_points <- projgrid$lattice$loc[which(xy.in), ]
-colnames(spatial_points) <- c("LONGITUDE", "LATITUDE")
-
-NearestPredCovs <- GetNearestCovariate(points = spatial_points, covs = temporal_variables)
-
-spatiotemporal_points <- rbind(spatial_points, spatial_points)
-SP_Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(spatiotemporal_points)/2))
-SP_Points_data[, 'annual_rain_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_1.s, NearestPredCovs@data$TZ_ann_rain_2000s_1.s)
-SP_Points_data[, 'annual_rain_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_2.s, NearestPredCovs@data$TZ_ann_rain_2000s_2.s)
-
-SP_Points_data[, 'hottest_temp_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_1.s, NearestPredCovs@data$TZ_max_temp_2000s_1.s)
-SP_Points_data[, 'hottest_temp_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_2.s, NearestPredCovs@data$TZ_max_temp_2000s_2.s)
-
-SP_Points_data[, 'max_dryspell_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_1.s, NearestPredCovs@data$TZ_dryspell_2000s_1.s)
-SP_Points_data[, 'max_dryspell_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_2.s, NearestPredCovs@data$TZ_dryspell_2000s_2.s)
-
-SP_Points_data[, 'BG_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_1.s, NearestPredCovs@data$TZ_BG_2000s_1.s)
-SP_Points_data[, 'BG_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_2.s, NearestPredCovs@data$TZ_BG_2000s_2.s)
-
-SP_Points_data[, 'indicator'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$indicator_90s, NearestPredCovs@data$indicator_2010s)
-
-IP_sp <- sp::SpatialPointsDataFrame(coords = spatiotemporal_points, data = SP_Points_data, proj4string = proj)
-IP_sp@data$Intercept <- 1
-IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
-
-projmat.pred <- inla.spde.make.A(mesh = Mesh$mesh, loc = IP_sp@coords, group = IP_sp@data$date_index)
+if(!file.exists(paste0(gsub(" ", "_", species), "_pred_files.RData"))){
+      # Set grid locations for predictions
+      Nxy.scale <- 0.1  # about 10km resolution
+      
+      Boundary <- Mesh$mesh$loc[Mesh$mesh$segm$int$idx[, 2], ]
+      Nxy.size <- c(diff(range(Boundary[, 1])), diff(range(Boundary[, 2])))
+      Nxy <- round(Nxy.size / Nxy.scale)
+      
+      projgrid <- inla.mesh.projector(Mesh$mesh, 
+                                      xlim = range(Boundary[, 1]), 
+                                      ylim = range(Boundary[, 2]), 
+                                      dims = Nxy)
+      
+      # Get the index of points on the grid within the boundary
+      xy.in <- splancs::inout(projgrid$lattice$loc, Boundary)
+      
+      # Select only points on the grid that fall within the boundary
+      predcoords <- projgrid$lattice$loc[which(xy.in), ]
+      colnames(predcoords) <- c('Long','Lat')
+      Apred <- projgrid$proj$A[which(xy.in), ]
+      
+      
+      # Construct the prediction data, which is spatial points by temporal layers
+      spatial_points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
+      spatial_points <- projgrid$lattice$loc[which(xy.in), ]
+      colnames(spatial_points) <- c("LONGITUDE", "LATITUDE")
+      
+      NearestPredCovs <- GetNearestCovariate(points = spatial_points, covs = temporal_variables)
+      
+      spatiotemporal_points <- rbind(spatial_points, spatial_points)
+      SP_Points_data <- data.frame(date_index = rep(c(1,2), each = nrow(spatiotemporal_points)/2))
+      SP_Points_data[, 'annual_rain_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_1.s, NearestPredCovs@data$TZ_ann_rain_2000s_1.s)
+      SP_Points_data[, 'annual_rain_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_ann_rain_1980s_2.s, NearestPredCovs@data$TZ_ann_rain_2000s_2.s)
+      
+      SP_Points_data[, 'hottest_temp_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_1.s, NearestPredCovs@data$TZ_max_temp_2000s_1.s)
+      SP_Points_data[, 'hottest_temp_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_max_temp_1980s_2.s, NearestPredCovs@data$TZ_max_temp_2000s_2.s)
+      
+      SP_Points_data[, 'max_dryspell_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_1.s, NearestPredCovs@data$TZ_dryspell_2000s_1.s)
+      SP_Points_data[, 'max_dryspell_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_dryspell_1980s_2.s, NearestPredCovs@data$TZ_dryspell_2000s_2.s)
+      
+      SP_Points_data[, 'BG_1'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_1.s, NearestPredCovs@data$TZ_BG_2000s_1.s)
+      SP_Points_data[, 'BG_2'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$TZ_BG_1980s_2.s, NearestPredCovs@data$TZ_BG_2000s_2.s)
+      
+      SP_Points_data[, 'indicator'] <- ifelse(SP_Points_data$date_index == 1, NearestPredCovs@data$indicator_90s, NearestPredCovs@data$indicator_2010s)
+      
+      IP_sp <- sp::SpatialPointsDataFrame(coords = spatiotemporal_points, data = SP_Points_data, proj4string = proj)
+      IP_sp@data$Intercept <- 1
+      IP_sp@data[, c("LONGITUDE", "LATITUDE")] <- IP_sp@coords
+      
+      projmat.pred <- inla.spde.make.A(mesh = Mesh$mesh, loc = IP_sp@coords, group = IP_sp@data$date_index)
+      
+      save(projmat.pred, IP_sp, predcoords, projgrid, xy.in, file = paste0(gsub(" ", "_", species), "_pred_files.RData"))
+} else {
+      load(paste0(gsub(" ", "_", species), "_pred_files.RData"))
+}
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 8. Prediction stack
@@ -338,8 +370,10 @@ for (i in 1:length(index_list)){
       form_1_stack[["effects"]][["names"]][[new_var]] <- form_1_stack[["effects"]][["names"]][["date_index"]]
 }
 
-# Define a PC-prior for the temporal autoregressive parameter.
-h.spec <- list(rho = list(prior = 'pc.prec', param = c(4,0.01)))
+# Define a PC-prior for the temporal autoregressive parameter. This is the probability of the 
+# standard deviation being higher than the given number. If 'param = c(4, 0.01)', 
+# P(sd > 4) = 0.01
+h.spec <- list(rho = list(prior = 'pc.prec', param = rho_params))
 
 # At each time point, spatial locations are linked through the spde.
 # Across time, the process evolves according to an AR(1) process.
@@ -372,19 +406,31 @@ form_2 <- resp ~ 0 +
 # ------------------------------------------------------------------------------------------------------------------------
 # 10. INLA model
 # ------------------------------------------------------------------------------------------------------------------------
-# lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
-model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
-              lincomb = all_lc,
-              data = inla.stack.data(integrated_stack), 
-              verbose = FALSE,
-              control.predictor = list(A = inla.stack.A(integrated_stack), 
-                                       link = NULL, compute = TRUE), 
-              E = inla.stack.data(integrated_stack)$e, 
-              control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
-
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
-saveRDS(model, file = paste0(sub(" ", "_", species), "_model_form2.RDS"))
-#model <- readRDS(paste0(sub(" ", "_", species), "_model_form2.RDS"))
+
+if(!file.exists( paste0(sub(" ", "_", species), "_form2_", 
+                        prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
+                        "_rho_", rho_params[1], ".RDS"))){
+      # lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
+      model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
+                    lincomb = all_lc,
+                    data = inla.stack.data(integrated_stack), 
+                    verbose = FALSE,
+                    control.predictor = list(A = inla.stack.A(integrated_stack), 
+                                             link = NULL, compute = TRUE), 
+                    E = inla.stack.data(integrated_stack)$e, 
+                    control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
+      
+      saveRDS(model, file = paste0(sub(" ", "_", species), "_form2_", 
+                                   prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
+                                   "_rho_", rho_params[1], ".RDS"))
+} else {
+      model <- readRDS(paste0(sub(" ", "_", species), "_form2_", 
+                              prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
+                              "_rho_", rho_params[1], ".RDS"))
+}
+
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/figures')
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 11. Effect plots 
@@ -426,7 +472,7 @@ facet_labels <- c(
 )
 
 # Make effect plots, using linear combinations
-ggplot(effect_combs_m) +
+effects_plot <- ggplot(effect_combs_m) +
       geom_line(aes(x = orig_values, y = quant_05)) +
       geom_line(aes(x = orig_values, y = quant_0025), lty = 2, alpha = .5) +
       geom_line(aes(x = orig_values, y = quant_0975), lty = 2, alpha = .5) +
@@ -438,6 +484,10 @@ ggplot(effect_combs_m) +
       xlab("Covariate value") +
       ylab("Probability of occurrence")
 
+ggsave(plot = effects_plot, filename = paste0("effects_", sub(" ", "_", species), "_", 
+                                              prior_range[1], "_", prior_range[2], "_", 
+                                              prior_sigma[1], "_", prior_sigma[2], 
+                                              "_rho_", rho_params[1],".pdf"))
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 12. Prediction plots
@@ -448,30 +498,50 @@ IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
 IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
 IP_df$pred_mean <- cloglog_inv(IP_df$pred_mean)
+
+
+IP_df$pred_sd <- model$summary.fitted.values[pred.index, "sd"]
+IP_df$pred_sd <- cloglog_inv(IP_df$pred_sd)
+
 # IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
 # IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
 pred_data <- data.frame(mean = IP_df$pred_mean,
                         ind = rep(c(1,2), each = length(IP_df$pred_mean)/2))
-
+pred_data_sd <- data.frame(sd = IP_df$pred_sd,
+                        ind = rep(c(1,2), each = length(IP_df$pred_sd)/2))
 predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
 pred_data_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
                                              data = pred_data, 
+                                             proj4string = proj)
+
+pred_data_sd_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
+                                             data = pred_data_sd, 
                                              proj4string = proj)
 
 pred_data_spdf <- crop(pred_data_spdf, TZ_no_lakes)
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 1] <- "1980-1999"
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 2] <- "2000-2020"
 
-ggplot() + 
+pred_data_sd_spdf <- crop(pred_data_sd_spdf, TZ_no_lakes)
+pred_data_sd_spdf@data[["ind"]][pred_data_sd_spdf@data[["ind"]] == 1] <- "1980-1999"
+pred_data_sd_spdf@data[["ind"]][pred_data_sd_spdf@data[["ind"]] == 2] <- "2000-2020"
+
+mean_plot <- ggplot() + 
       gg(pred_data_spdf) + 
       facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis("Probability") +
+      viridis::scale_fill_viridis("Mean") +
       theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle(paste0(species, " - Predicted occurrence"))
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) 
 
+sd_plot <- ggplot() + 
+      gg(pred_data_sd_spdf) + 
+      facet_grid( ~ ind) +
+      coord_equal() +
+      viridis::scale_fill_viridis("SD") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) 
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 13. Posterior mean of the space-time random field 
@@ -501,16 +571,40 @@ spatObj <- crop(spatObj, TZ_no_lakes)
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
-ggplot() + 
+random_plot <- ggplot() + 
       gg(spatObj) + 
       facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis() +
+      viridis::scale_fill_viridis("Mean") +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
       ggtitle(paste0(species, " - Random field"))
 
+maps_combined <- gridExtra::grid.arrange(mean_plot, sd_plot, random_plot, top = text_grob(paste0(species, " - Predicted occurrence")))
 
+ggsave(plot = maps_combined, filename =paste0("maps_", sub(" ", "_", species), "_", 
+                                              prior_range[1], "_", prior_range[2], "_", 
+                                              prior_sigma[1], "_", prior_sigma[2], 
+                                              "_rho_", rho_params[1],".pdf"),
+       width = 20, height = 20, units = 'cm')
 
-hist(integrated_stack[["effects"]][["data"]][["hottest_temp_1"]])
+# ------------------------------------------------------------------------------------------------------------------------
+# 14. Range change
+# ------------------------------------------------------------------------------------------------------------------------
+range_diff <- pred_data_spdf
 
+range_diff@data[["mean"]] <- range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "2000-2020"] -  range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "1980-1999"]
+mean(range_diff@data[["mean"]], na.rm = TRUE)
+range_plot <- ggplot() + 
+      gg(range_diff) + 
+      coord_equal() +
+      viridis::scale_fill_viridis("Difference") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
+      ggtitle(paste0(species, " - Occurrence change"))
+
+ggsave(plot = range_plot, filename =paste0("difference_", sub(" ", "_", species), "_", 
+                                              prior_range[1], "_", prior_range[2], "_", 
+                                              prior_sigma[1], "_", prior_sigma[2], 
+                                              "_rho_", rho_params[1],".pdf"),
+       width = 18, height = 18, units = 'cm')
