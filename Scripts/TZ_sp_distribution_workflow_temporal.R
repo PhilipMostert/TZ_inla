@@ -13,6 +13,7 @@ library(rlang)
 library(inlabru)
 library(ggthemes)
 library(gridExtra)
+library(ggpubr)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source/')
@@ -31,8 +32,8 @@ load("TZ_INLA_model_file_temporal.RData")
 # ------------------------------------------------------------------------------------------------------------------------
 
 # Species choices
-species_list = c('Cisticola juncidis', 'Eremopterix leucopareia', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis')
-species <- species_list[1]
+species_list = c('Nectarinia kilimensis',  'Eremopterix leucopareia', 'Bubo africanus')
+species <- species_list[2]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -64,7 +65,7 @@ max.edge = estimated_range/8
 # prior_sigma = c(1, 0.05)
 # rho_params = c(4, 0.01)
 
-prior_range = c(0.25, 0.05)  
+prior_range = c(2.5, 0.05)  
 prior_sigma = c(1, 0.05)
 rho_params = c(4, 0.01)
 
@@ -72,6 +73,7 @@ rho_params = c(4, 0.01)
 # 1. Data preparation
 # ------------------------------------------------------------------------------------------------------------------------
 if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
+      
       ebird_full <- ebird_full %>%
             mutate(date_index = ifelse(date > '2000-01-01',2,1))
       
@@ -123,7 +125,7 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
             data = data.frame(presence = atlas_filtered$presence, effort = atlas_filtered$effort,
                               date_index = atlas_filtered$date_index),
             proj4string = crs(proj))
-      
+  
       range01 <- function(x){(x - min(x))/(max(x) - min(x))}
       ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
       atlas_sp$effort <- range01(atlas_sp$effort)
@@ -192,6 +194,10 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
       load(paste0(gsub(" ", "_", species), "_model_data.RData"))
 }
 
+print(species)
+print(paste0('Number of eBird records: ', length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE, ]))))
+print(paste0('Number of Atlas records: ', length(rownames(atlas_sp@data[atlas_sp@data$presence == TRUE, ]))))
+
 # ------------------------------------------------------------------------------------------------------------------------
 # 2. Mesh
 # ------------------------------------------------------------------------------------------------------------------------
@@ -224,7 +230,7 @@ pcspde <- inla.spde2.pcmatern(
       alpha = 2,
       prior.range = prior_range,   
       prior.sigma = prior_sigma)
-
+# To use default priors: inla.spde2.matern(mesh = Mesh$mesh, alpha = 2)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 4. Space-time index set
@@ -239,7 +245,7 @@ n_time_layers = 2
 # A double index, identifying both the spatial location and associated time point. 1 to n.spde index points 
 # for n.group times.
 
-index_set <- inla.spde.make.index(name ='i',
+index_set <- inla.spde.make.index(name ='spatial.field',
                                   n.spde = pcspde$n.spde,
                                   n.group = n_time_layers)
 lengths(index_set)
@@ -271,12 +277,12 @@ dim(projmat_atlas)
 stk.eBird <- inla.stack(data = list(resp = ebird_sp@data[, 'presence']),
                         A = list(1, projmat_eBird), 
                         tag = 'eBird',
-                        effects = list(ebird_sp@data, i = index_set))
+                        effects = list(ebird_sp@data, spatial.field = index_set))
 
 stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
                         A = list(1, projmat_atlas),
                         tag = 'atlas',
-                        effects = list(atlas_sp@data, i = index_set))
+                        effects = list(atlas_sp@data, spatial.field = index_set))
 
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -350,7 +356,7 @@ stk.pred <- inla.stack(tag='pred',
                        data = list(resp = NA), 
                        A = list(1, projmat.pred), 
                        effects = list(IP_sp@data, 
-                                      i = index_set))
+                                      spatial.field = index_set))
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
 
@@ -399,9 +405,10 @@ form_2 <- resp ~ 0 +
       annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + 
       max_dryspell_1 + max_dryspell_2 + 
       BG_1 + BG_2 +
-      date_index + indicator +
-      f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1', hyper = h.spec))
-
+      #date_index +     # Global time effect, fixed
+      indicator +
+      f(spatial.field, model = pcspde, group = spatial.field.group,  # In each year, spatial locations are linked by spde
+        control.group = list(model = 'ar1', hyper = h.spec))   # Across time, process evolves according to AR(1) process
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 10. INLA model
@@ -419,7 +426,7 @@ if(!file.exists( paste0(sub(" ", "_", species), "_form2_",
                     control.predictor = list(A = inla.stack.A(integrated_stack), 
                                              link = NULL, compute = TRUE), 
                     E = inla.stack.data(integrated_stack)$e, 
-                    control.compute = list(waic = FALSE, dic = FALSE, cpo = FALSE))
+                    control.compute = list(waic = FALSE, dic = FALSE, cpo = TRUE))
       
       saveRDS(model, file = paste0(sub(" ", "_", species), "_form2_", 
                                    prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
@@ -429,6 +436,11 @@ if(!file.exists( paste0(sub(" ", "_", species), "_form2_",
                               prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
                               "_rho_", rho_params[1], ".RDS"))
 }
+
+# Posterior variance and range of the spatial parameters
+output.field <- inla.spde2.result(inla = model, name = "spatial.field", spde = pcspde, do.transf = TRUE)
+inla.emarginal(function(x) x, output.field$marginals.variance.nominal[[1]])
+inla.emarginal(function(x) x,output.field$marginals.range.nominal[[1]])
 
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/figures')
 
@@ -499,7 +511,6 @@ IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
 IP_df$pred_mean <- cloglog_inv(IP_df$pred_mean)
 
-
 IP_df$pred_sd <- model$summary.fitted.values[pred.index, "sd"]
 IP_df$pred_sd <- cloglog_inv(IP_df$pred_sd)
 
@@ -553,7 +564,7 @@ sd_plot <- ggplot() +
 xmean <- list()
 for (j in 1:2) {
       xmean[[j]] <- inla.mesh.project(
-            projgrid,  model$summary.random$i$mean[index_set$i.group == j])
+            projgrid,  model$summary.random$spatial.field$mean[index_set$spatial.field.group == j])
 }
 
 xy.inGroup <- c(xy.in,xy.in)
@@ -580,7 +591,7 @@ random_plot <- ggplot() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
       ggtitle(paste0(species, " - Random field"))
 
-maps_combined <- gridExtra::grid.arrange(mean_plot, sd_plot, random_plot, top = text_grob(paste0(species, " - Predicted occurrence")))
+maps_combined <- gridExtra::grid.arrange(mean_plot, sd_plot, random_plot, top = ggpubr::text_grob(paste0(species, " - Predicted occurrence")))
 
 ggsave(plot = maps_combined, filename =paste0("maps_", sub(" ", "_", species), "_", 
                                               prior_range[1], "_", prior_range[2], "_", 
@@ -592,9 +603,10 @@ ggsave(plot = maps_combined, filename =paste0("maps_", sub(" ", "_", species), "
 # 14. Range change
 # ------------------------------------------------------------------------------------------------------------------------
 range_diff <- pred_data_spdf
-
+range_diff@data[["mean"]] <- ifelse(range_diff@data[["mean"]] > 0.25, 1, 0)
 range_diff@data[["mean"]] <- range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "2000-2020"] -  range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "1980-1999"]
-mean(range_diff@data[["mean"]], na.rm = TRUE)
+table(range_diff@data[["mean"]])
+
 range_plot <- ggplot() + 
       gg(range_diff) + 
       coord_equal() +
