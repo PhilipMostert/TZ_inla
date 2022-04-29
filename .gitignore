@@ -4,6 +4,7 @@
 .Ruserdata
 model_output/
 figures/
+model_data/
 <<<<<<< HEAD
 =======
 TZ_inla_spatial_temporal.Rproj
