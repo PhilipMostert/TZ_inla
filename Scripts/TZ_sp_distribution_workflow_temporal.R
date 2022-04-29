@@ -16,34 +16,32 @@ library(gridExtra)
 library(ggpubr)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Scripts')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source/')
 
 #setwd('/home/ahomec/p/philism/Joris_work/scripts')
-sapply(list.files(pattern="*.R"),source,.GlobalEnv)
+sapply(list.files(path = '/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/source',
+                  pattern="*.R", full.names = T), source, .GlobalEnv)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
 
 #setwd('/home/ahomec/p/philism/Joris_work/Philip_data')
-load("TZ_INLA_model_file_temporal.RData")
+load("model_data/TZ_INLA_model_file_temporal.RData")
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Global variables
 # ------------------------------------------------------------------------------------------------------------------------
 
 # Species choices
-species_list = c('Nectarinia kilimensis',  'Eremopterix leucopareia', 'Bubo africanus')
+species_list = c('Nectarinia kilimensis', 'Eremopterix leucopareia', 'Bubo africanus')
 species <- species_list[2]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
 
 # Mesh parameters
-estimated_range = 2
+estimated_range = 3
 max.edge = estimated_range/8
 
-# Set priors for random elements of the model. 
-# 
+# Approach outlined in Simpson et al. (2017), weakly informative.
 # Range: Distance at which spatial autocorrelation is small, or practical range.
 # If prior.range = c(10, 0.01), this means that the probability that the range 
 # of the spatial effect is less than 10 degrees is presumed to be very small.
@@ -52,27 +50,22 @@ max.edge = estimated_range/8
 # These priors shrink the spatial model towards the base model (without a 
 # spatial term).
 # Sigma: Variation in the spatial effect (how variable is the field from a point to the next, the δ parameter)
-# PC priors are weakly informative. They are set directly on the distance from the base model, making it more 
-# or less flexible.
 
-
-# diff(range(Mesh$mesh$loc[, 1]))/2
 # sd(integrated_stack$effects$data$presence, na.rm = T)/10
 # prior.range = c(10 * max.edge, 0.5)
+# Don't try range larger than half maximum domain distance = diff(range(Mesh$mesh$loc[, 1]))/2
+# Need some knowledge of the scale of response and predictor, we just need to get the general 
+# scale correct. 
+# Set range so it represents a relatively small distance on the predictor scale.
+# Set sigma quite large, we would be surprised if SD exceeded this.
 
-# Ploceus nigricollis
-# prior_range = c(2.5, 0.05)  # Unlikely that un-measured covariates operate at less than ~280km
-# prior_sigma = c(1, 0.05)
-# rho_params = c(4, 0.01)
-
-prior_range = c(2.5, 0.05)  
-prior_sigma = c(1, 0.05)
-rho_params = c(4, 0.01)
+prior_range = c(3.75, 0.05)  
+prior_sigma = c(0.2, 0.05)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 1. Data preparation
 # ------------------------------------------------------------------------------------------------------------------------
-if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
+if (!file.exists(paste0("model_data/", gsub(" ", "_", species), "_model_data.RData"))) {
       
       ebird_full <- ebird_full %>%
             mutate(date_index = ifelse(date > '2000-01-01',2,1))
@@ -82,7 +75,8 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
                    `ALL SPECIES REPORTED` == 1,           # Only keep complete checklists
                    `EFFORT DISTANCE KM` < 15,
                    `DURATION MINUTES` >= 5,
-                   `DURATION MINUTES` <= 240)   
+                   `DURATION MINUTES` <= 5*60,
+                   `NUMBER OBSERVERS` <= 10)   
       
       ebird_filtered <- ebird_filtered %>% 
             group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
@@ -95,12 +89,13 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
             ungroup() %>% 
             rename(duration_minutes = `DURATION MINUTES`,
                    effort_distance_km = `EFFORT DISTANCE KM`,
-                   number_observers = `NUMBER OBSERVERS`)
+                   number_observers = `NUMBER OBSERVERS`) %>% 
+            mutate(ebird_effort = number_observers*duration_minutes)   # Following Humphreys et al. 2018, Diversity and Distributions
       
       ebird_sp <- SpatialPointsDataFrame(
             coords = ebird_filtered[, c("LONGITUDE", "LATITUDE")],
-            data = data.frame(presence = ebird_filtered$occurrence, duration_minutes = ebird_filtered$duration_minutes,
-                              effort_distance_km = ebird_filtered$effort_distance_km, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
+            data = data.frame(presence = ebird_filtered$occurrence, ebird_effort = ebird_filtered$ebird_effort,
+                              duration_minutes = ebird_filtered$duration_minutes, number_observers = ebird_filtered$number_observers, date_index = ebird_filtered$date_index),
             proj4string = crs(proj))
       
       # Only include eBird data points for Tanzania
@@ -127,10 +122,11 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
             proj4string = crs(proj))
   
       range01 <- function(x){(x - min(x))/(max(x) - min(x))}
+      ebird_sp$ebird_effort <- range01(ebird_sp$ebird_effort)
       ebird_sp$duration_minutes <- range01(ebird_sp$duration_minutes)
       atlas_sp$effort <- range01(atlas_sp$effort)
       
-      filtered_covs <- temporal_variables[,c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_2000s_1.s', 
+      filtered_covs <- temporal_variables[, c('TZ_ann_rain_1980s_1.s', 'TZ_ann_rain_2000s_1.s', 
                                              'TZ_ann_rain_1980s_2.s', 'TZ_ann_rain_2000s_2.s', 
                                              'TZ_max_temp_1980s_1.s', 'TZ_max_temp_2000s_1.s',
                                              'TZ_max_temp_1980s_2.s', 'TZ_max_temp_2000s_2.s',
@@ -142,9 +138,8 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
       
             
       # Samples the covariates spatially closest to the occurrence data points    
-      Nearest_covs_ebird <- GetNearestCovariate(ebird_sp,filtered_covs)  
+      Nearest_covs_ebird <- GetNearestCovariate(ebird_sp, filtered_covs)  
       Nearest_covs_atlas <- GetNearestCovariate(atlas_sp, filtered_covs)
-      
       
       # Add sampled covariates to occurrence data
       ebird_sp@data[, names(Nearest_covs_ebird@data)] <- Nearest_covs_ebird@data
@@ -186,23 +181,71 @@ if (!file.exists(paste0(gsub(" ", "_", species), "_model_data.RData"))) {
                                          proj4string = crs(proj))
       atlas_sp@data[,'atlas_intercept'] <- 1
       atlas_sp$presence <- as.numeric(atlas_sp$presence)
-      save(ebird_sp, atlas_sp, file = paste0(gsub(" ", "_", species), "_model_data.RData"))
+      save(ebird_sp, atlas_sp, file = paste0("model_data/", gsub(" ", "_", species), "_model_data.RData"))
 
 } else {
       
       # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Covariate_data')
-      load(paste0(gsub(" ", "_", species), "_model_data.RData"))
+      load(paste0("model_data/", gsub(" ", "_", species), "_model_data.RData"))
 }
 
 print(species)
-print(paste0('Number of eBird records: ', length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE, ]))))
-print(paste0('Number of Atlas records: ', length(rownames(atlas_sp@data[atlas_sp@data$presence == TRUE, ]))))
+print(paste0('eBird presence records 1980s: ', length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE & as.data.frame(ebird_sp)$date_index == 1, ]))))
+print(paste0('eBird presence records 2000s: ', length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE & as.data.frame(ebird_sp)$date_index == 2, ]))))
+print(paste0('Atlas presence records 1980s: ', length(rownames(atlas_sp@data[atlas_sp@data$presence == TRUE & as.data.frame(atlas_sp)$date_index == 1, ]))))
+print(paste0('Atlas presence records 2000s: ', length(rownames(atlas_sp@data[atlas_sp@data$presence == TRUE & as.data.frame(atlas_sp)$date_index == 2, ]))))
+
+
+if (!file.exists(paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"))){
+      plot_80s <- ggplot() +
+            geom_polygon(data = TZ_no_lakes, aes(x = long, y = lat, group = group), 
+                         colour = "black", fill = NA) +
+            geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 0 & as.data.frame(atlas_sp)$date_index == 1, ], 
+                       aes(x = Long, y = Lat, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
+            geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 1 & as.data.frame(atlas_sp)$date_index == 1, ], 
+                       aes(x = Long, y = Lat, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 1, ], 
+                       aes(x = LONGITUDE, y = LATITUDE, fill = "Absence"), pch = 21, alpha = 0.5) +
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 1, ], 
+                       aes(x = LONGITUDE, y = LATITUDE, fill = "Presence"), pch = 23, cex = 2) +
+            theme_void() +
+            coord_equal() +
+            scale_fill_discrete(name = 'eBird') +
+            scale_color_discrete(name = 'Atlas') +
+            ggtitle(paste0("1980-1999, eBird presence: ", length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE & as.data.frame(ebird_sp)$date_index == 1, ]))))  +
+            theme(plot.title = element_text(hjust = 0.5))
+      
+      plot_2000s <- ggplot() +
+            geom_polygon(data = TZ_no_lakes, aes(x = long, y = lat, group = group), 
+                         colour = "black", fill = NA) +
+            geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 0 & as.data.frame(atlas_sp)$date_index == 2, ], 
+                       aes(x = Long, y = Lat, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
+            geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 1 & as.data.frame(atlas_sp)$date_index == 2, ], 
+                       aes(x = Long, y = Lat, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 2, ], 
+                       aes(x = LONGITUDE, y = LATITUDE, fill = "Absence"), pch = 21, alpha = 0.5) +
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 2, ], 
+                       aes(x = LONGITUDE, y = LATITUDE, fill = "Presence"), pch = 23, cex = 2) +
+            theme_void() +
+            coord_equal() +
+            scale_fill_discrete(name = 'eBird') +
+            scale_color_discrete(name = 'Atlas') +
+            ggtitle(paste0("2000-2020, eBird presence: ", length(rownames(ebird_sp@data[ebird_sp@data$presence == TRUE & as.data.frame(ebird_sp)$date_index == 2, ])))) +
+            theme(plot.title = element_text(hjust = 0.5))
+      
+      
+      raw_plots_comb <- gridExtra::grid.arrange(plot_80s, plot_2000s, nrow = 2, 
+                                                top = text_grob(paste0(species, " - Occurrence Data"), size = 16))
+      
+      ggsave(plot = raw_plots_comb, filename = paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"),
+             width = 18, height = 18, units = 'cm')
+}
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 2. Mesh
 # ------------------------------------------------------------------------------------------------------------------------
 
-if (!file.exists(paste0("mesh_E", max.edge,".RData"))) {
+if (!file.exists(paste0("model_data/mesh_E", max.edge,".RData"))) {
       Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
                        offset = c(max.edge, max.edge*5), 
                        cutoff = max.edge/2)
@@ -215,9 +258,9 @@ if (!file.exists(paste0("mesh_E", max.edge,".RData"))) {
       )
       
       plot(Mesh$mesh)
-      save(Mesh, file = paste0("mesh_E", max.edge,".RData"))
+      save(Mesh, file = paste0("model_data/mesh_E", max.edge,".RData"))
 } else {
-      load(paste0("mesh_E", max.edge,".RData"))
+      load(paste0("model_data/mesh_E", max.edge,".RData"))
 }
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -292,7 +335,7 @@ stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
 # Contains the locations and times where we want to make predictions. Code for this is adapted from the 
 # 'MakeProjectionGrid' function.
 
-if(!file.exists(paste0(gsub(" ", "_", species), "_pred_files.RData"))){
+if(!file.exists(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RData"))){
       # Set grid locations for predictions
       Nxy.scale <- 0.1  # about 10km resolution
       
@@ -343,9 +386,9 @@ if(!file.exists(paste0(gsub(" ", "_", species), "_pred_files.RData"))){
       
       projmat.pred <- inla.spde.make.A(mesh = Mesh$mesh, loc = IP_sp@coords, group = IP_sp@data$date_index)
       
-      save(projmat.pred, IP_sp, predcoords, projgrid, xy.in, file = paste0(gsub(" ", "_", species), "_pred_files.RData"))
+      save(projmat.pred, IP_sp, predcoords, projgrid, xy.in, file = paste0("model_data/", gsub(" ", "_", species), "_pred_files.RData"))
 } else {
-      load(paste0(gsub(" ", "_", species), "_pred_files.RData"))
+      load(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RData"))
 }
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -379,7 +422,8 @@ for (i in 1:length(index_list)){
 # Define a PC-prior for the temporal autoregressive parameter. This is the probability of the 
 # standard deviation being higher than the given number. If 'param = c(4, 0.01)', 
 # P(sd > 4) = 0.01
-h.spec <- list(rho = list(prior = 'pc.prec', param = rho_params))
+sdres <- sd(integrated_stack$effects$data$presence, na.rm = T)
+h.spec <- list(rho = list(prior="pc.prec", param = c(3*sdres, 0.01)))
 
 # At each time point, spatial locations are linked through the spde.
 # Across time, the process evolves according to an AR(1) process.
@@ -388,7 +432,7 @@ h.spec <- list(rho = list(prior = 'pc.prec', param = rho_params))
 form_1 <- resp ~ 0 +
       ebird_intercept +
       atlas_intercept +
-      duration_minutes + effort + 
+      ebird_effort + effort + 
       f(date_index, annual_rain_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +  
       f(date_index1, annual_rain_2, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +   
       f(date_index2, hottest_temp_1, model="rw1", scale.model=TRUE, constr=FALSE, hyper = h.spec) +   
@@ -398,26 +442,35 @@ form_1 <- resp ~ 0 +
       f(i, model = pcspde, group = i.group, control.group = list(model = 'ar1'))
 
 # MODEL 2 -----------------------------------------------------------------------------------------------------------------
+# f(annual_rain_1, model = "linear", mean.linear = 0, prec.linear = 0.001)
 form_2 <- resp ~ 0 +
       ebird_intercept +
       atlas_intercept +
-      duration_minutes + effort + 
       annual_rain_1 + annual_rain_2 + hottest_temp_1 + hottest_temp_2 + 
       max_dryspell_1 + max_dryspell_2 + 
-      BG_1 + BG_2 +
-      #date_index +     # Global time effect, fixed
-      indicator +
+      BG_1 + BG_2 + indicator +
+      duration_minutes + effort + 
       f(spatial.field, model = pcspde, group = spatial.field.group,  # In each year, spatial locations are linked by spde
         control.group = list(model = 'ar1', hyper = h.spec))   # Across time, process evolves according to AR(1) process
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 10. INLA model
 # ------------------------------------------------------------------------------------------------------------------------
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_output')
+# Set parameters on the default priors of fixed effects.
+# If default priors produce too much shrinkage of coefficients
+# towards zero, consider a larger precision, e.g. prec = 0.001^2.
+# The default: INLA::inla.set.control.fixed.default()$prec
+C.F. <- list(
+      mean = list(ebird_intercept = 0, atlas_intercept = 0),
+      mean.intercept = 0,
+      prec = list(ebird_intercept = 1, atlas_intercept = 1),
+      prec.intercept = 0.001
+)
 
-if(!file.exists( paste0(sub(" ", "_", species), "_form2_", 
-                        prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
-                        "_rho_", rho_params[1], ".RDS"))){
+
+
+if(!file.exists(paste0("model_data/", sub(" ", "_", species), "_form2_", 
+                        prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], ".RDS"))){
       # lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
       model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
                     lincomb = all_lc,
@@ -425,49 +478,34 @@ if(!file.exists( paste0(sub(" ", "_", species), "_form2_",
                     verbose = FALSE,
                     control.predictor = list(A = inla.stack.A(integrated_stack), 
                                              link = NULL, compute = TRUE), 
-                    E = inla.stack.data(integrated_stack)$e, 
-                    control.compute = list(waic = FALSE, dic = FALSE, cpo = TRUE))
+                    control.fixed = C.F.,
+                    #E = inla.stack.data(integrated_stack)$e, 
+                    control.compute = list(waic = TRUE, dic = TRUE, cpo = FALSE))
       
-      saveRDS(model, file = paste0(sub(" ", "_", species), "_form2_", 
+      saveRDS(model, file = paste0("model_data/", sub(" ", "_", species), "_form2_", 
                                    prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
-                                   "_rho_", rho_params[1], ".RDS"))
+                                   ".RDS"))
 } else {
-      model <- readRDS(paste0(sub(" ", "_", species), "_form2_", 
+      model <- readRDS(paste0("model_data/", sub(" ", "_", species), "_form2_", 
                               prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
-                              "_rho_", rho_params[1], ".RDS"))
+                              ".RDS"))
 }
 
-# Posterior variance and range of the spatial parameters
+summary(model)
+# Posterior range of the spatial parameters
 output.field <- inla.spde2.result(inla = model, name = "spatial.field", spde = pcspde, do.transf = TRUE)
-inla.emarginal(function(x) x, output.field$marginals.variance.nominal[[1]])
-inla.emarginal(function(x) x,output.field$marginals.range.nominal[[1]])
-
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/figures')
+inla.emarginal(function(x) x, output.field$marginals.range.nominal[[1]])
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 11. Effect plots 
 # ------------------------------------------------------------------------------------------------------------------------
 
-# for (i in 1:length(res.bits$marginals.fixed)) {
-#       tmp = inla.tmarginal(function(x) x, res.bits$marginals.fixed[[i]]) ## not sure how to fix?
-#       plot(tmp, type = "l", xlab = paste("Fixed effect marginal", i, ":", names(res.bits[["marginals.fixed"]])[i]), ylab = "Density")
-#       abline(v = 0, lty = 2)
-# }
-
-# Collect model results
-# res.bits <- list("summary.lincomb" = model$summary.lincomb, 
-#                  "summary.lincomb.derived" = model$summary.lincomb.derived,
-#                  "marginals.lincomb.derived" = model$marginals.lincomb.derived,
-#                  "summary.fixed"  = model$summary.fixed,
-#                  "summary.hyperpar" = model$summary.hyperpar,
-#                  "marginals.fixed" = model$marginals.fixed)
-
 original_values <- data.frame(orig_values = unlist(all.seq)) %>% 
       mutate(covariate = sub("*.seq\\d+", "", rownames(.)),
              sequence = as.numeric(gsub("\\D", "", rownames(.))))
 
-# Make effects dataframe. Add constant equally to all derived values, to boost effects
-scale_params <- mean(model$summary.lincomb.derived$`0.5quant`)
+# Make effects dataframe. Add constant equally to all derived values, to better visualize effects
+scale_params <- median(model$summary.lincomb.derived$`0.5quant`)
 effect_combs <- data.frame(covariate = sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived)),
                            sequence = as.numeric(gsub("\\D", "", rownames(model$summary.lincomb.derived))),
                            quant_05 = cloglog_inv((model$summary.lincomb.derived$`0.5quant` - scale_params) - 0.36),
@@ -494,12 +532,12 @@ effects_plot <- ggplot(effect_combs_m) +
       theme(plot.title = element_text(hjust = 0.5)) +
       ggtitle(paste0(species, " - Effect plots")) +
       xlab("Covariate value") +
-      ylab("Probability of occurrence")
+      ylab("Probability of occurrence"); effects_plot
 
-ggsave(plot = effects_plot, filename = paste0("effects_", sub(" ", "_", species), "_", 
+ggsave(plot = effects_plot, filename = paste0("figures/effects_", sub(" ", "_", species), "_", 
                                               prior_range[1], "_", prior_range[2], "_", 
                                               prior_sigma[1], "_", prior_sigma[2], 
-                                              "_rho_", rho_params[1],".pdf"))
+                                              ".png"))
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 12. Prediction plots
@@ -508,46 +546,37 @@ pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
 
 IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
-IP_df$pred_mean <- model$summary.fitted.values[pred.index, "mean"]
-IP_df$pred_mean <- cloglog_inv(IP_df$pred_mean)
+IP_df$pred_median <- model$summary.fitted.values[pred.index, "0.5quant"]
+IP_df$pred_median <- cloglog_inv(IP_df$pred_median)
 
 IP_df$pred_sd <- model$summary.fitted.values[pred.index, "sd"]
-IP_df$pred_sd <- cloglog_inv(IP_df$pred_sd)
 
 # IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
 # IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
-pred_data <- data.frame(mean = IP_df$pred_mean,
-                        ind = rep(c(1,2), each = length(IP_df$pred_mean)/2))
-pred_data_sd <- data.frame(sd = IP_df$pred_sd,
-                        ind = rep(c(1,2), each = length(IP_df$pred_sd)/2))
-predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
-pred_data_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
-                                             data = pred_data, 
-                                             proj4string = proj)
+pred_data <- data.frame(median = IP_df$pred_median,
+                        sd = IP_df$pred_sd,
+                        ind = rep(c(1,2), each = length(IP_df$pred_median)/2))
 
-pred_data_sd_spdf <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
-                                             data = pred_data_sd, 
+predcoordsGroup <- do.call(rbind, list(predcoords, predcoords))
+pred_data_spdf <- sp::SpatialPixelsDataFrame(points = predcoordsGroup, 
+                                             data = pred_data, 
                                              proj4string = proj)
 
 pred_data_spdf <- crop(pred_data_spdf, TZ_no_lakes)
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 1] <- "1980-1999"
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 2] <- "2000-2020"
 
-pred_data_sd_spdf <- crop(pred_data_sd_spdf, TZ_no_lakes)
-pred_data_sd_spdf@data[["ind"]][pred_data_sd_spdf@data[["ind"]] == 1] <- "1980-1999"
-pred_data_sd_spdf@data[["ind"]][pred_data_sd_spdf@data[["ind"]] == 2] <- "2000-2020"
-
-mean_plot <- ggplot() + 
-      gg(pred_data_spdf) + 
+median_plot <- ggplot() + 
+      gg(pred_data_spdf, aes(x = Long, y = Lat, fill = median)) + 
       facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis("Mean") +
+      viridis::scale_fill_viridis("Median") +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) 
 
 sd_plot <- ggplot() + 
-      gg(pred_data_sd_spdf) + 
+      gg(pred_data_spdf, aes(x = Long, y = Lat, fill = sd)) + 
       facet_grid( ~ ind) +
       coord_equal() +
       viridis::scale_fill_viridis("SD") +
@@ -555,27 +584,26 @@ sd_plot <- ggplot() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) 
 
 # ------------------------------------------------------------------------------------------------------------------------
-# 13. Posterior mean of the space-time random field 
+# 13. Posterior median of the space-time random field 
 # ------------------------------------------------------------------------------------------------------------------------
 
-# Plot the posterior mean of the space-time random field = the latent field (not directly observed)
+# Plot the posterior median of the space-time random field = the latent field (not directly observed)
 # This shows us the variation in the spatial effect, as well as spatial dependence.
 
-xmean <- list()
+xmedian <- list()
 for (j in 1:2) {
-      xmean[[j]] <- inla.mesh.project(
-            projgrid,  model$summary.random$spatial.field$mean[index_set$spatial.field.group == j])
+      xmedian[[j]] <- inla.mesh.project(
+            projgrid,  model$summary.random$spatial.field$`0.5quant`[index_set$spatial.field.group == j])
 }
 
 xy.inGroup <- c(xy.in,xy.in)
-xmean <- unlist(xmean)
-xmean <- xmean[xy.inGroup]
+xmedian <- unlist(xmedian)
+xmedian <- xmedian[xy.inGroup]
 
-dataObj <- data.frame(mean = xmean,
-                      ind = rep(c(1,2), each = length(xmean)/2))
-#dataObj$mean <- cloglog_inv(dataObj$mean)
+dataObj <- data.frame(median = xmedian,
+                      ind = rep(c(1,2), each = length(xmedian)/2))
 
-spatObj <- sp::SpatialPixelsDataFrame(points  = predcoordsGroup, 
+spatObj <- sp::SpatialPixelsDataFrame(points = predcoordsGroup, 
                                       data = dataObj, 
                                       proj4string = proj)
 spatObj <- crop(spatObj, TZ_no_lakes)
@@ -583,40 +611,72 @@ spatObj@data[["ind"]][spatObj@data[["ind"]] == 1] <- "1980-1999"
 spatObj@data[["ind"]][spatObj@data[["ind"]] == 2] <- "2000-2020"
 
 random_plot <- ggplot() + 
-      gg(spatObj) + 
+      gg(spatObj, aes(x = Long, y = Lat, fill = median)) + 
       facet_grid( ~ ind) +
       coord_equal() +
-      viridis::scale_fill_viridis("Mean") +
+      viridis::scale_fill_viridis("Median") +
       theme_void() +
       theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
       ggtitle(paste0(species, " - Random field"))
 
-maps_combined <- gridExtra::grid.arrange(mean_plot, sd_plot, random_plot, top = ggpubr::text_grob(paste0(species, " - Predicted occurrence")))
+maps_combined <- gridExtra::grid.arrange(median_plot, sd_plot, random_plot, 
+                                         top = ggpubr::text_grob(species))
 
-ggsave(plot = maps_combined, filename =paste0("maps_", sub(" ", "_", species), "_", 
+ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", species), "_", 
                                               prior_range[1], "_", prior_range[2], "_", 
                                               prior_sigma[1], "_", prior_sigma[2], 
-                                              "_rho_", rho_params[1],".pdf"),
+                                              ".png"),
        width = 20, height = 20, units = 'cm')
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 14. Range change
 # ------------------------------------------------------------------------------------------------------------------------
 range_diff <- pred_data_spdf
-range_diff@data[["mean"]] <- ifelse(range_diff@data[["mean"]] > 0.25, 1, 0)
-range_diff@data[["mean"]] <- range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "2000-2020"] -  range_diff@data[["mean"]][range_diff@data[["ind"]] ==  "1980-1999"]
-table(range_diff@data[["mean"]])
 
-range_plot <- ggplot() + 
-      gg(range_diff) + 
+dist_20s <- range_diff@data[["median"]][range_diff@data[["ind"]] ==  "2000-2020"] 
+dist_80s <- range_diff@data[["median"]][range_diff@data[["ind"]] ==  "1980-1999"] 
+range_diff@data[["median"]] <- dist_20s - dist_80s
+range_diff@data[["colonisation"]] <- (1-dist_80s) * dist_20s # probability of colonisation
+range_diff@data[["extinction"]] <- (dist_80s) * (1-dist_20s) # probability of extinction
+range_diff@data[["con_absence"]] <- (1-dist_80s) * (1-dist_20s) # probability of continued absence
+range_diff@data[["con_presence"]] <- (dist_80s) * (dist_20s) # probability of continued presence
+
+# net range expansion:
+range_exp <- sum(dist_20s - dist_80s, na.rm = TRUE) # expected number of pixels that have changed
+
+col_plot <- ggplot() + 
+      gg(range_diff, aes(x = Long, y = Lat, fill = colonisation)) + 
       coord_equal() +
-      viridis::scale_fill_viridis("Difference") +
+      viridis::scale_fill_viridis("P(Colonisation)") +
       theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5)) +
-      ggtitle(paste0(species, " - Occurrence change"))
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
 
-ggsave(plot = range_plot, filename =paste0("difference_", sub(" ", "_", species), "_", 
+ext_plot <- ggplot() + 
+      gg(range_diff, aes(x = Long, y = Lat, fill = extinction)) + 
+      coord_equal() +
+      viridis::scale_fill_viridis("P(Extinction)") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+
+con_absence_plot <- ggplot() + 
+      gg(range_diff, aes(x = Long, y = Lat, fill = con_absence)) + 
+      coord_equal() +
+      viridis::scale_fill_viridis("P(Continued absence)") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+
+con_presence_plot <- ggplot() + 
+      gg(range_diff, aes(x = Long, y = Lat, fill = con_presence)) + 
+      coord_equal() +
+      viridis::scale_fill_viridis("P(Continued presence)") +
+      theme_void() +
+      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+
+range_plots_comb <- gridExtra::grid.arrange(col_plot, ext_plot, con_absence_plot, con_presence_plot, 
+                                            nrow = 2)
+
+ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ", "_", species), "_", 
                                               prior_range[1], "_", prior_range[2], "_", 
                                               prior_sigma[1], "_", prior_sigma[2], 
-                                              "_rho_", rho_params[1],".pdf"),
+                                              ".png"),
        width = 18, height = 18, units = 'cm')
