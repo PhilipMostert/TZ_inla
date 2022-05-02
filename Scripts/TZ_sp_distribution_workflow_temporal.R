@@ -29,10 +29,9 @@ load("model_data/TZ_INLA_model_file_temporal.RData")
 # ------------------------------------------------------------------------------------------------------------------------
 # Global variables
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Species choices
-species_list = c('Nectarinia kilimensis', 'Eremopterix leucopareia', 'Bubo africanus')
-species <- species_list[2]
+species_list = c('Estrilda astrild', 'Histurgops ruficauda', 'Bubo africanus', 'Eremopterix leucopareia')
+species <- species_list[1]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -52,15 +51,32 @@ max.edge = estimated_range/8
 # Sigma: Variation in the spatial effect (how variable is the field from a point to the next, the δ parameter)
 
 # sd(integrated_stack$effects$data$presence, na.rm = T)/10
-# prior.range = c(10 * max.edge, 0.5)
-# Don't try range larger than half maximum domain distance = diff(range(Mesh$mesh$loc[, 1]))/2
 # Need some knowledge of the scale of response and predictor, we just need to get the general 
 # scale correct. 
 # Set range so it represents a relatively small distance on the predictor scale.
 # Set sigma quite large, we would be surprised if SD exceeded this.
+# Higher range values means stricter prior, and stronger smoothing.
 
-prior_range = c(3.75, 0.05)  
-prior_sigma = c(0.2, 0.05)
+# Range guidelines:
+# No larger than diff(range(Mesh$mesh$loc[, 1]))/2
+# No smaller than max.edge
+# Good starting point: c(10 * max.edge, 0.5)
+# Range and sigma could be chosen so that random field explains up to 25% of variations is
+# model predictions
+
+# Penalized complexity priors for spde
+prior_range = c(3.75, 0.5)  
+prior_sigma = c(1, 0.1)
+
+# Gaussian priors for fixed effects
+# Default is "non-informative": 0 mean and precision of 0.001
+fixed_mean = 0
+fixed_precision = 1
+
+# Model output string
+model_name <- paste0(sub(" ", "_", species), "_form2_r", 
+prior_range[1], "_", prior_range[2], "_s", prior_sigma[1], "_", prior_sigma[2], 
+"_mean", fixed_mean, "_prec", fixed_precision, ".RDS")
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 1. Data preparation
@@ -181,6 +197,12 @@ if (!file.exists(paste0("model_data/", gsub(" ", "_", species), "_model_data.RDa
                                          proj4string = crs(proj))
       atlas_sp@data[,'atlas_intercept'] <- 1
       atlas_sp$presence <- as.numeric(atlas_sp$presence)
+      
+      utm_prj <- "+proj=utm +zone=37 +south +ellps=clrk80 +towgs84=-160,-6,-302,0,0,0,0 +units=km +no_defs"
+      # utm_prj_2 <- "+proj=utm +zone=37 +south +datum=WGS84 +units=km +no_defs "
+      
+      
+      CRS("+init=epsg:32737")
       save(ebird_sp, atlas_sp, file = paste0("model_data/", gsub(" ", "_", species), "_model_data.RData"))
 
 } else {
@@ -244,7 +266,6 @@ if (!file.exists(paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"
 # ------------------------------------------------------------------------------------------------------------------------
 # 2. Mesh
 # ------------------------------------------------------------------------------------------------------------------------
-
 if (!file.exists(paste0("model_data/mesh_E", max.edge,".RData"))) {
       Meshpars <- list(max.edge = c(max.edge, max.edge*4), 
                        offset = c(max.edge, max.edge*5), 
@@ -266,7 +287,6 @@ if (!file.exists(paste0("model_data/mesh_E", max.edge,".RData"))) {
 # ------------------------------------------------------------------------------------------------------------------------
 # 3. SPDE model on the mesh
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Use Penalized Complexity prior, this determines the smoothness of the spatial effect.
 pcspde <- inla.spde2.pcmatern(
       mesh = Mesh$mesh,
@@ -278,7 +298,6 @@ pcspde <- inla.spde2.pcmatern(
 # ------------------------------------------------------------------------------------------------------------------------
 # 4. Space-time index set
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Set the number of time periods
 n_time_layers = 2
 
@@ -297,7 +316,6 @@ lengths(index_set)
 # ------------------------------------------------------------------------------------------------------------------------
 # 5. Projection matrices
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Make the projector matrix, which projects the spatio-temporal continuous Gaussian
 # random field from observations to mesh nodes.
 # Uses coordinates of the observed data
@@ -316,7 +334,6 @@ dim(projmat_atlas)
 # ------------------------------------------------------------------------------------------------------------------------
 # 6. Estimation stacks
 # ------------------------------------------------------------------------------------------------------------------------
-
 stk.eBird <- inla.stack(data = list(resp = ebird_sp@data[, 'presence']),
                         A = list(1, projmat_eBird), 
                         tag = 'eBird',
@@ -331,7 +348,6 @@ stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
 # ------------------------------------------------------------------------------------------------------------------------
 # 7. Prediction data
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Contains the locations and times where we want to make predictions. Code for this is adapted from the 
 # 'MakeProjectionGrid' function.
 
@@ -394,7 +410,6 @@ if(!file.exists(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RDat
 # ------------------------------------------------------------------------------------------------------------------------
 # 8. Prediction stack
 # ------------------------------------------------------------------------------------------------------------------------
-
 stk.pred <- inla.stack(tag='pred',
                        data = list(resp = NA), 
                        A = list(1, projmat.pred), 
@@ -407,7 +422,6 @@ integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
 # ------------------------------------------------------------------------------------------------------------------------
 # 9. Model formula
 # ------------------------------------------------------------------------------------------------------------------------
-
 # Not sure if this is correct, but need to somehow add a copy of 'date_index', with different names, for form_1
 index_list <- paste0("date_index", 1:6)
 
@@ -459,18 +473,17 @@ form_2 <- resp ~ 0 +
 # Set parameters on the default priors of fixed effects.
 # If default priors produce too much shrinkage of coefficients
 # towards zero, consider a larger precision, e.g. prec = 0.001^2.
-# The default: INLA::inla.set.control.fixed.default()$prec
+# The default: INLA::inla.set.control.fixed.default()
+
+# Gaussian priors
 C.F. <- list(
-      mean = list(ebird_intercept = 0, atlas_intercept = 0),
-      mean.intercept = 0,
-      prec = list(ebird_intercept = 1, atlas_intercept = 1),
-      prec.intercept = 0.001
+      mean = fixed_mean,
+      prec = list(default = fixed_precision)   # Precision for all fixed effects except intercept
 )
 
 
 
-if(!file.exists(paste0("model_data/", sub(" ", "_", species), "_form2_", 
-                        prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], ".RDS"))){
+if(!file.exists(paste0("model_data/", model_name))){
       # lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
       model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
                     lincomb = all_lc,
@@ -482,13 +495,9 @@ if(!file.exists(paste0("model_data/", sub(" ", "_", species), "_form2_",
                     #E = inla.stack.data(integrated_stack)$e, 
                     control.compute = list(waic = TRUE, dic = TRUE, cpo = FALSE))
       
-      saveRDS(model, file = paste0("model_data/", sub(" ", "_", species), "_form2_", 
-                                   prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
-                                   ".RDS"))
+      saveRDS(model, file = paste0("model_data/", model_name))
 } else {
-      model <- readRDS(paste0("model_data/", sub(" ", "_", species), "_form2_", 
-                              prior_range[1], "_", prior_range[2], "_", prior_sigma[1], "_", prior_sigma[2], 
-                              ".RDS"))
+      model <- readRDS(paste0("model_data/", model_name))
 }
 
 summary(model)
@@ -534,9 +543,10 @@ effects_plot <- ggplot(effect_combs_m) +
       xlab("Covariate value") +
       ylab("Probability of occurrence"); effects_plot
 
-ggsave(plot = effects_plot, filename = paste0("figures/effects_", sub(" ", "_", species), "_", 
-                                              prior_range[1], "_", prior_range[2], "_", 
+ggsave(plot = effects_plot, filename = paste0("figures/effects_", sub(" ", "_", species), "_r", 
+                                              prior_range[1], "_", prior_range[2], "_s", 
                                               prior_sigma[1], "_", prior_sigma[2], 
+                                              "_mean", fixed_mean, "_prec", fixed_precision,  
                                               ".png"))
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -622,9 +632,10 @@ random_plot <- ggplot() +
 maps_combined <- gridExtra::grid.arrange(median_plot, sd_plot, random_plot, 
                                          top = ggpubr::text_grob(species))
 
-ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", species), "_", 
-                                              prior_range[1], "_", prior_range[2], "_", 
+ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", species), "_r", 
+                                              prior_range[1], "_", prior_range[2], "_s", 
                                               prior_sigma[1], "_", prior_sigma[2], 
+                                              "_mean", fixed_mean, "_prec", fixed_precision,  
                                               ".png"),
        width = 20, height = 20, units = 'cm')
 
@@ -675,8 +686,9 @@ con_presence_plot <- ggplot() +
 range_plots_comb <- gridExtra::grid.arrange(col_plot, ext_plot, con_absence_plot, con_presence_plot, 
                                             nrow = 2)
 
-ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ", "_", species), "_", 
-                                              prior_range[1], "_", prior_range[2], "_", 
-                                              prior_sigma[1], "_", prior_sigma[2], 
-                                              ".png"),
+ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ", "_", species), "_r", 
+                                                 prior_range[1], "_", prior_range[2], "_s", 
+                                                 prior_sigma[1], "_", prior_sigma[2], 
+                                                 "_mean", fixed_mean, "_prec", fixed_precision,  
+                                                 ".png"),
        width = 18, height = 18, units = 'cm')
