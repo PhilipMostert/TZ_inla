@@ -30,8 +30,8 @@ load("model_data/TZ_INLA_model_file_temporal.RData")
 # Global variables
 # ------------------------------------------------------------------------------------------------------------------------
 # Species choices
-species_list = c('Estrilda astrild', 'Histurgops ruficauda', 'Bubo africanus', 'Eremopterix leucopareia')
-species <- species_list[1]
+species_list = c('Cisticola brunnescens', 'Histurgops ruficauda', 'Bubo africanus', 'Eremopterix leucopareia')
+species <- species_list[4]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -66,12 +66,12 @@ max.edge = estimated_range/8
 
 # Penalized complexity priors for spde
 prior_range = c(3.75, 0.5)  
-prior_sigma = c(1, 0.1)
+prior_sigma = c(2, 0.1)
 
 # Gaussian priors for fixed effects
-# Default is "non-informative": 0 mean and precision of 0.001
+# Default is "non-informative" (or "vague"): 0 mean and precision of 0.001
 fixed_mean = 0
-fixed_precision = 1
+fixed_precision = 0.1
 
 # Model output string
 model_name <- paste0(sub(" ", "_", species), "_form2_r", 
@@ -198,7 +198,7 @@ if (!file.exists(paste0("model_data/", gsub(" ", "_", species), "_model_data.RDa
       atlas_sp@data[,'atlas_intercept'] <- 1
       atlas_sp$presence <- as.numeric(atlas_sp$presence)
       
-      utm_prj <- "+proj=utm +zone=37 +south +ellps=clrk80 +towgs84=-160,-6,-302,0,0,0,0 +units=km +no_defs"
+      # utm_prj <- "+proj=utm +zone=37 +south +ellps=clrk80 +towgs84=-160,-6,-302,0,0,0,0 +units=km +no_defs"
       # utm_prj_2 <- "+proj=utm +zone=37 +south +datum=WGS84 +units=km +no_defs "
       
       
@@ -478,7 +478,7 @@ form_2 <- resp ~ 0 +
 # Gaussian priors
 C.F. <- list(
       mean = fixed_mean,
-      prec = list(default = fixed_precision)   # Precision for all fixed effects except intercept
+      prec = fixed_precision   # Precision for all fixed effects except intercept
 )
 
 
@@ -493,14 +493,17 @@ if(!file.exists(paste0("model_data/", model_name))){
                                              link = NULL, compute = TRUE), 
                     control.fixed = C.F.,
                     #E = inla.stack.data(integrated_stack)$e, 
-                    control.compute = list(waic = TRUE, dic = TRUE, cpo = FALSE))
+                    control.compute = list(waic = FALSE, dic = TRUE, cpo = TRUE))
       
       saveRDS(model, file = paste0("model_data/", model_name))
 } else {
       model <- readRDS(paste0("model_data/", model_name))
 }
 
-summary(model)
+# Look at hyperparameters. sd should be somewhat smaller than mean,
+# Stdev should not be very small.
+model[["summary.hyperpar"]]
+
 # Posterior range of the spatial parameters
 output.field <- inla.spde2.result(inla = model, name = "spatial.field", spde = pcspde, do.transf = TRUE)
 inla.emarginal(function(x) x, output.field$marginals.range.nominal[[1]])
