@@ -460,13 +460,13 @@ projmat.ip <- Matrix::Diagonal(Mesh$mesh$n, rep(1, Mesh$mesh$n))  # from mesh to
 
 #create inla stack
 stk.ip <- inla.stack(tag="ip",
-                     data=list(resp = NA, e = c(Mesh$w, Mesh$w)),  # 0 for count, NA for incidental, e is area of mesh polygon
-                     A=list(1, test), 
-                     effects=list(IP_sp@data, 
-                                  spatial.field = index_set))  
+                     data=list(resp = NA, e = Mesh$w),  # 0 for count, NA for incidental, e is area of mesh polygon
+                     A=list(1, projmat.ip), 
+                     effects=list(NearestCovs@data, 
+                                  spatial.field = 1:Mesh$mesh$n))  
 
 
-NROW(c(Mesh$w, Mesh$w))
+
 
 integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred, stk.ip)
 
