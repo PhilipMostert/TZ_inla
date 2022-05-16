@@ -26,11 +26,11 @@ ROI <- TZ_buffered
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 # Import bird data, initial filtering
 ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>% 
-  mutate(date = ymd(get("OBSERVATION DATE"))) %>%
-  filter(!is.na(`DURATION MINUTES`), !is.na(`EFFORT DISTANCE KM`))
+      mutate(date = ymd(get("OBSERVATION DATE"))) %>%
+      filter(!is.na(`DURATION MINUTES`), !is.na(`EFFORT DISTANCE KM`))
 
 atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
-  filter(!is.na(effort))
+      filter(!is.na(effort))
 
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
@@ -80,14 +80,14 @@ values(indicator_2010s)[is.na(values(indicator_2010s))] <- 0
 
 # Stack all covariate layers
 temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, 
-                   TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
-                   TZ_dryspell_80_00, TZ_dryspell_00_20,
-                   TZ_BG_90_99, TZ_BG_10_19, indicator_90s, indicator_2010s)
+                            TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
+                            TZ_dryspell_80_00, TZ_dryspell_00_20,
+                            TZ_BG_90_99, TZ_BG_10_19, indicator_90s, indicator_2010s)
 
 names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
-                      'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
-                      'TZ_dryspell_1980s', 'TZ_dryspell_2000s',
-                      'TZ_BG_90_99', 'TZ_BG_10_19', 'indicator_90s', 'indicator_2010s')
+                               'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
+                               'TZ_dryspell_1980s', 'TZ_dryspell_2000s',
+                               'TZ_BG_90_99', 'TZ_BG_10_19', 'indicator_90s', 'indicator_2010s')
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
@@ -135,6 +135,6 @@ TZ_BG_lc       <- inla.make.lincombs(ebird_intercept = rep(1, 100),
 all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc, TZ_BG_lc)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
-setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_INLA/data_processed')
+setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_data')
 
 save(proj, ROI, ebird_full, atlas_full, temporal_variables, TZ_outline, TZ_no_lakes, all_lc, all.seq, file = "TZ_INLA_model_file_temporal.RData")
