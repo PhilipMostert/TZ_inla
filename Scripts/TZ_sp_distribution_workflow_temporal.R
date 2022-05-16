@@ -1,5 +1,5 @@
 rm(list = ls())
-
+setwd("~/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal")
 args = commandArgs(trailingOnly = TRUE)
 options(scipen=999)
 
@@ -30,8 +30,8 @@ load("model_data/TZ_INLA_model_file_temporal.RData")
 # Global variables
 # ------------------------------------------------------------------------------------------------------------------------
 # Species choices
-species_list = c('Cisticola brunnescens', 'Histurgops ruficauda', 'Bubo africanus', 'Eremopterix leucopareia')
-species <- species_list[4]
+species_list = c('Eremopterix leucopareia', 'Histurgops ruficauda', 'Mirafra africana', 'Passer domesticus')
+species <- species_list[2]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -58,20 +58,25 @@ max.edge = estimated_range/8
 # Higher range values means stricter prior, and stronger smoothing.
 
 # Range guidelines:
-# No larger than diff(range(Mesh$mesh$loc[, 1]))/2
-# No smaller than max.edge
+# No larger than diff(range(Mesh$mesh$loc[, 1]))/2: 8
+# No smaller than max.edge: 0.375
 # Good starting point: c(10 * max.edge, 0.5)
 # Range and sigma could be chosen so that random field explains up to 25% of variations is
 # model predictions
 
+# Sigma guidelines:
+# After running an initial model, look at Stdev, compare with chosen sigma prior.
+# If far apart, adjust. Keep a bit vague, with P 0.5
+
 # Penalized complexity priors for spde
-prior_range = c(3.75, 0.5)  
-prior_sigma = c(2, 0.1)
+prior_range = c(6, 0.5)  
+prior_sigma = c(6, 0.5)   
 
 # Gaussian priors for fixed effects
-# Default is "non-informative" (or "vague"): 0 mean and precision of 0.001
+# Default is "non-informative" (or "vague"): 0 mean and precision of 0.001.
+# For models with log link, this is no longer non-informative
 fixed_mean = 0
-fixed_precision = 0.1
+fixed_precision = 1
 
 # Model output string
 model_name <- paste0(sub(" ", "_", species), "_form2_r", 
@@ -124,6 +129,11 @@ if (!file.exists(paste0("model_data/", gsub(" ", "_", species), "_model_data.RDa
       atlas_full <- atlas_full %>%
             filter(time_period != 'x') %>%
             mutate(date_index = ifelse(time_period == '20s',2,1))
+      
+      atlas_full$Scientific[atlas_full$Scientific == "Nectarinia olivacea"] <- "Cyanomitra olivacea"
+      atlas_full$Scientific[atlas_full$Scientific == "Andropadus virens"] <- "Eurillas virens"
+      
+      
       
       atlas_filtered <- atlas_full %>% 
             mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
@@ -226,9 +236,9 @@ if (!file.exists(paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"
                        aes(x = Long, y = Lat, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
             geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 1 & as.data.frame(atlas_sp)$date_index == 1, ], 
                        aes(x = Long, y = Lat, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
-            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 1, ], 
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 1, ],
                        aes(x = LONGITUDE, y = LATITUDE, fill = "Absence"), pch = 21, alpha = 0.5) +
-            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 1, ], 
+            geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 1, ],
                        aes(x = LONGITUDE, y = LATITUDE, fill = "Presence"), pch = 23, cex = 2) +
             theme_void() +
             coord_equal() +
@@ -416,7 +426,49 @@ stk.pred <- inla.stack(tag='pred',
                        effects = list(IP_sp@data, 
                                       spatial.field = index_set))
 
-integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred)
+# ------------------------------------------------------------------------------------------------------------------------
+# 9. Integration stack
+# ------------------------------------------------------------------------------------------------------------------------
+# LGCP, spatially varying intensity. 'MakeIntegrationStack' adds area of mesh 
+# polygon as 'e'. Probability of observing a certain number of points in that 
+# area follows a Poisson distribution with defined intensity.
+
+
+#get coordindate and covariate column names
+coordnames <- colnames(temporal_variables@coords)
+Names <- colnames(temporal_variables@data)
+
+Names  <- c(coordnames, Names)
+
+#get mesh triangle centroids
+Points <- cbind(c(Mesh$mesh$loc[,1]), c(Mesh$mesh$loc[,2]))
+
+#set column names of centroids to cordinate names from covariate data
+colnames(Points) <- coordnames
+
+#get value of nearest covariate to each mesh centroids
+NearestCovs <- GetNearestCovariate(points=Points, covs=temporal_variables)
+
+#set intercept to 1 for each mesh element
+NearestCovs$Intercept <- rep(1,nrow(NearestCovs))
+
+#add coordinate to data part of spatialpoints object if they are given
+NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
+
+# Projector matrix for integration points.
+projmat.ip <- Matrix::Diagonal(Mesh$mesh$n, rep(1, Mesh$mesh$n))  # from mesh to integration points
+
+#create inla stack
+stk.ip <- inla.stack(tag="ip",
+                     data=list(resp = NA, e = c(Mesh$w, Mesh$w)),  # 0 for count, NA for incidental, e is area of mesh polygon
+                     A=list(1, test), 
+                     effects=list(IP_sp@data, 
+                                  spatial.field = index_set))  
+
+
+NROW(c(Mesh$w, Mesh$w))
+
+integrated_stack <- inla.stack(stk.eBird, stk.atlas, stk.pred, stk.ip)
 
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -475,6 +527,22 @@ form_2 <- resp ~ 0 +
 # towards zero, consider a larger precision, e.g. prec = 0.001^2.
 # The default: INLA::inla.set.control.fixed.default()
 
+# Add linear combinations to identify covariate importance
+TZ_lc_noTempMax <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                      atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                      annual_rain_1 = SP_Points_data$annual_rain_1,
+                                      annual_rain_2 = SP_Points_data$annual_rain_2,
+                                      max_dryspell_1 =SP_Points_data$max_dryspell_1,
+                                      max_dryspell_2 = SP_Points_data$max_dryspell_2,
+                                      BG_1 = SP_Points_data$BG_1,
+                                      BG_2 = SP_Points_data$BG_2,
+                                      indicator = SP_Points_data$indicator)
+names(TZ_lc_noTempMax) <- paste0("TZ_lc_noTempMax", 1:NROW(SP_Points_data))
+all_lc_new <- c(all_lc, TZ_lc_noTempMax)
+
+# 1: Get into same spatial points shape as random effect and full prediction
+# 2: Add random effect to those spatial points
+
 # Gaussian priors
 C.F. <- list(
       mean = fixed_mean,
@@ -483,7 +551,7 @@ C.F. <- list(
 
 
 
-if(!file.exists(paste0("model_data/", model_name))){
+if(!file.exists(paste0("model_output/", model_name))){
       # lc_no_BG <- all_lc[grepl("BG", all_lc) == FALSE]
       model <- inla(form_2, family = "binomial", control.family = list(link = "cloglog"), # Backtransform for probability scale
                     lincomb = all_lc,
@@ -492,12 +560,12 @@ if(!file.exists(paste0("model_data/", model_name))){
                     control.predictor = list(A = inla.stack.A(integrated_stack), 
                                              link = NULL, compute = TRUE), 
                     control.fixed = C.F.,
-                    #E = inla.stack.data(integrated_stack)$e, 
+                    # E = inla.stack.data(integrated_stack)$e, 
                     control.compute = list(waic = FALSE, dic = TRUE, cpo = TRUE))
       
-      saveRDS(model, file = paste0("model_data/", model_name))
+      saveRDS(model, file = paste0("model_output/", model_name))
 } else {
-      model <- readRDS(paste0("model_data/", model_name))
+      model <- readRDS(paste0("model_output/", model_name))
 }
 
 # Look at hyperparameters. sd should be somewhat smaller than mean,
@@ -511,26 +579,25 @@ inla.emarginal(function(x) x, output.field$marginals.range.nominal[[1]])
 # ------------------------------------------------------------------------------------------------------------------------
 # 11. Effect plots 
 # ------------------------------------------------------------------------------------------------------------------------
-
 original_values <- data.frame(orig_values = unlist(all.seq)) %>% 
       mutate(covariate = sub("*.seq\\d+", "", rownames(.)),
              sequence = as.numeric(gsub("\\D", "", rownames(.))))
 
 # Make effects dataframe. Add constant equally to all derived values, to better visualize effects
 scale_params <- median(model$summary.lincomb.derived$`0.5quant`)
-effect_combs <- data.frame(covariate = sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived)),
+effect_combs <- data.frame(covariate = gsub('[[:digit:]]+', '', sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived))),
                            sequence = as.numeric(gsub("\\D", "", rownames(model$summary.lincomb.derived))),
                            quant_05 = cloglog_inv((model$summary.lincomb.derived$`0.5quant` - scale_params) - 0.36),
                            quant_0025 = cloglog_inv((model$summary.lincomb.derived$`0.025quant` - scale_params) - 0.36),
                            quant_0975 = cloglog_inv((model$summary.lincomb.derived$`0.975quant` - scale_params) - 0.36))
-
-effect_combs_m <- merge(original_values, effect_combs)
+effect_combs_main <- effect_combs %>% filter(covariate %in% c("TZ_ann_rain", "TZ_BG", "TZ_dryspell", "TZ_max_temp"))
+effect_combs_m <- merge(original_values, effect_combs_main)
 
 facet_labels <- c(
       TZ_ann_rain = "Annual rainfall",
       TZ_BG = "Bareground cover",
       TZ_dryspell = "Longest dryspell duration",
-      TZ_max_temp = "Hottest summer temperature"
+      TZ_max_temp = "Hottest temperature"
 )
 
 # Make effect plots, using linear combinations
@@ -539,7 +606,7 @@ effects_plot <- ggplot(effect_combs_m) +
       geom_line(aes(x = orig_values, y = quant_0025), lty = 2, alpha = .5) +
       geom_line(aes(x = orig_values, y = quant_0975), lty = 2, alpha = .5) +
       # geom_rug(data = atlas_filtered, aes(x = )) +
-      facet_wrap(~ covariate, scale = 'free', labeller = as_labeller(facet_labels)) +
+      facet_wrap(~ covariate, scale = 'free_x', labeller = as_labeller(facet_labels)) +
       theme_few() +
       theme(plot.title = element_text(hjust = 0.5)) +
       ggtitle(paste0(species, " - Effect plots")) +
@@ -556,18 +623,23 @@ ggsave(plot = effects_plot, filename = paste0("figures/effects_", sub(" ", "_", 
 # 12. Prediction plots
 # ------------------------------------------------------------------------------------------------------------------------
 pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
+lincomb.index <- grep('TZ_lc_noTempMax', rownames(model$summary.lincomb.derived))
 
 IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, LONGITUDE, LATITUDE)
 
 IP_df$pred_median <- model$summary.fitted.values[pred.index, "0.5quant"]
-IP_df$pred_median <- cloglog_inv(IP_df$pred_median)
+IP_df$pred_median_P <- cloglog_inv(IP_df$pred_median)
 
 IP_df$pred_sd <- model$summary.fitted.values[pred.index, "sd"]
+
+IP_df$no_temp_median <- model$summary.lincomb.derived[lincomb.index, "0.5quant"]
 
 # IP_df$pred_ll <- model$summary.fitted.values[pred.index, "0.025quant"]
 # IP_df$pred_ul <- model$summary.fitted.values[pred.index, "0.975quant"]
 
 pred_data <- data.frame(median = IP_df$pred_median,
+                        median_P = IP_df$pred_median_P,
+                        no_temp_median = IP_df$no_temp_median,
                         sd = IP_df$pred_sd,
                         ind = rep(c(1,2), each = length(IP_df$pred_median)/2))
 
@@ -581,7 +653,7 @@ pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 1] <- "1980-1999"
 pred_data_spdf@data[["ind"]][pred_data_spdf@data[["ind"]] == 2] <- "2000-2020"
 
 median_plot <- ggplot() + 
-      gg(pred_data_spdf, aes(x = Long, y = Lat, fill = median)) + 
+      gg(pred_data_spdf, aes(x = Long, y = Lat, fill = median_P)) + 
       facet_grid( ~ ind) +
       coord_equal() +
       viridis::scale_fill_viridis("Median") +
@@ -635,63 +707,110 @@ random_plot <- ggplot() +
 maps_combined <- gridExtra::grid.arrange(median_plot, sd_plot, random_plot, 
                                          top = ggpubr::text_grob(species))
 
-ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", species), "_r", 
-                                              prior_range[1], "_", prior_range[2], "_s", 
-                                              prior_sigma[1], "_", prior_sigma[2], 
-                                              "_mean", fixed_mean, "_prec", fixed_precision,  
+ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", species), "_r",
+                                              prior_range[1], "_", prior_range[2], "_s",
+                                              prior_sigma[1], "_", prior_sigma[2],
+                                              "_mean", fixed_mean, "_prec", fixed_precision,
                                               ".png"),
        width = 20, height = 20, units = 'cm')
 
 # ------------------------------------------------------------------------------------------------------------------------
-# 14. Range change
+# 14. Diagnostic plot
 # ------------------------------------------------------------------------------------------------------------------------
-range_diff <- pred_data_spdf
+# Find out how much of the variation in linear predictions is explained by the random effects alone
+pred_data_spdf$random <- spatObj$median
+pred_data_spdf$fixed_effect <- pred_data_spdf$median - pred_data_spdf$random
 
-dist_20s <- range_diff@data[["median"]][range_diff@data[["ind"]] ==  "2000-2020"] 
-dist_80s <- range_diff@data[["median"]][range_diff@data[["ind"]] ==  "1980-1999"] 
-range_diff@data[["median"]] <- dist_20s - dist_80s
-range_diff@data[["colonisation"]] <- (1-dist_80s) * dist_20s # probability of colonisation
-range_diff@data[["extinction"]] <- (dist_80s) * (1-dist_20s) # probability of extinction
-range_diff@data[["con_absence"]] <- (1-dist_80s) * (1-dist_20s) # probability of continued absence
-range_diff@data[["con_presence"]] <- (dist_80s) * (dist_20s) # probability of continued presence
+rsq <- function(x, y) summary(lm(y~x))$r.squared
+rsquared <- rsq(pred_data_spdf$median, pred_data_spdf$random)
+r2_random_linear <- ggplot(as.data.frame(pred_data_spdf)) +
+      geom_point(aes(x = random, y = median)) +
+      geom_abline(color = "darkred") +
+      annotate("text", -Inf, Inf, hjust = -0.25, vjust = 3, label = paste0("R-squared: ", round(rsquared, digits = 3))) +
+      theme_few() +
+      xlab("Random field estimate") +
+      ylab("Linear prediction"); r2_random_linear
 
-# net range expansion:
-range_exp <- sum(dist_20s - dist_80s, na.rm = TRUE) # expected number of pixels that have changed
+ggsave(plot = r2_random_linear, filename =paste0("figures/r2_randomLinear_", sub(" ", "_", species), "_r",
+                                              prior_range[1], "_", prior_range[2], "_s",
+                                              prior_sigma[1], "_", prior_sigma[2],
+                                              "_mean", fixed_mean, "_prec", fixed_precision,
+                                              ".png"),
+       width = 20, height = 20, units = 'cm')
 
-col_plot <- ggplot() + 
-      gg(range_diff, aes(x = Long, y = Lat, fill = colonisation)) + 
-      coord_equal() +
-      viridis::scale_fill_viridis("P(Colonisation)") +
-      theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# ------------------------------------------------------------------------------------------------------------------------
+# 15. Relative importance of covariates
+# ------------------------------------------------------------------------------------------------------------------------
+pred_data_spdf$no_temp_new <- pred_data_spdf$no_temp_median + pred_data_spdf$random
+spplot(pred_data_spdf, field = "no_temp_median")
 
-ext_plot <- ggplot() + 
-      gg(range_diff, aes(x = Long, y = Lat, fill = extinction)) + 
-      coord_equal() +
-      viridis::scale_fill_viridis("P(Extinction)") +
-      theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# Overall importance
+1- (cor(pred_data_spdf$no_temp_new, pred_data_spdf$median))^2 
 
-con_absence_plot <- ggplot() + 
-      gg(range_diff, aes(x = Long, y = Lat, fill = con_absence)) + 
-      coord_equal() +
-      viridis::scale_fill_viridis("P(Continued absence)") +
-      theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# Proportion of explained variance
+1- (cor(pred_data_spdf$no_temp_new, pred_data_spdf$fixed_effect))^2
 
-con_presence_plot <- ggplot() + 
-      gg(range_diff, aes(x = Long, y = Lat, fill = con_presence)) + 
-      coord_equal() +
-      viridis::scale_fill_viridis("P(Continued presence)") +
-      theme_void() +
-      theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# What happens with effort?
+# Try linear combination without effort, check if that equals fixed effects computed by
+# subtracting random effects from fitted (not transformed to probability)
 
-range_plots_comb <- gridExtra::grid.arrange(col_plot, ext_plot, con_absence_plot, con_presence_plot, 
-                                            nrow = 2)
 
-ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ", "_", species), "_r", 
-                                                 prior_range[1], "_", prior_range[2], "_s", 
-                                                 prior_sigma[1], "_", prior_sigma[2], 
-                                                 "_mean", fixed_mean, "_prec", fixed_precision,  
-                                                 ".png"),
-       width = 18, height = 18, units = 'cm')
+
+
+# ------------------------------------------------------------------------------------------------------------------------
+# 16. Range change
+# ------------------------------------------------------------------------------------------------------------------------
+# range_diff <- pred_data_spdf
+# 
+# dist_20s <- range_diff@data[["median_P"]][range_diff@data[["ind"]] ==  "2000-2020"]
+# dist_80s <- range_diff@data[["median_P"]][range_diff@data[["ind"]] ==  "1980-1999"]
+# range_diff@data[["median_P"]] <- dist_20s - dist_80s
+# range_diff@data[["colonisation"]] <- (1-dist_80s) * dist_20s # probability of colonisation
+# range_diff@data[["extinction"]] <- (dist_80s) * (1-dist_20s) # probability of extinction
+# range_diff@data[["con_absence"]] <- (1-dist_80s) * (1-dist_20s) # probability of continued absence
+# range_diff@data[["con_presence"]] <- (dist_80s) * (dist_20s) # probability of continued presence
+# 
+# # net range expansion:
+# range_exp <- sum(dist_20s - dist_80s, na.rm = TRUE) # expected number of pixels that have changed
+# 
+# col_plot <- ggplot() +
+#       gg(range_diff, aes(x = Long, y = Lat, fill = colonisation)) +
+#       coord_equal() +
+#       viridis::scale_fill_viridis("P(Colonisation)") +
+#       theme_void() +
+#       theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# 
+# ext_plot <- ggplot() +
+#       gg(range_diff, aes(x = Long, y = Lat, fill = extinction)) +
+#       coord_equal() +
+#       viridis::scale_fill_viridis("P(Extinction)") +
+#       theme_void() +
+#       theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# 
+# con_absence_plot <- ggplot() +
+#       gg(range_diff, aes(x = Long, y = Lat, fill = con_absence)) +
+#       coord_equal() +
+#       viridis::scale_fill_viridis("P(Continued absence)") +
+#       theme_void() +
+#       theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# 
+# con_presence_plot <- ggplot() +
+#       gg(range_diff, aes(x = Long, y = Lat, fill = con_presence)) +
+#       coord_equal() +
+#       viridis::scale_fill_viridis("P(Continued presence)") +
+#       theme_void() +
+#       theme(plot.title = element_text(hjust = 0.5, vjust = 5))
+# 
+# range_plots_comb <- gridExtra::grid.arrange(col_plot, ext_plot, con_absence_plot, con_presence_plot,
+#                                             nrow = 2)
+# 
+# ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ", "_", species), "_r",
+#                                                  prior_range[1], "_", prior_range[2], "_s",
+#                                                  prior_sigma[1], "_", prior_sigma[2],
+#                                                  "_mean", fixed_mean, "_prec", fixed_precision,
+#                                                  ".png"),
+#        width = 18, height = 18, units = 'cm')
+# 
+# 
+# 
+
