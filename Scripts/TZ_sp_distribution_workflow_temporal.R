@@ -30,8 +30,8 @@ load("model_data/TZ_INLA_model_file_temporal.RData")
 # Global variables
 # ------------------------------------------------------------------------------------------------------------------------
 # Species choices
-species_list = c('Eremopterix leucopareia', 'Histurgops ruficauda', 'Mirafra africana', 'Passer domesticus')
-species <- species_list[1]
+species_list = c('Eremopterix leucopareia', 'Histurgops ruficauda', 'Mirafra africana', 'Passer domesticus', 'Estrilda astrild', 'Eurillas virens')
+species <- species_list[3]
 #species_list = c('Passer domesticus', 'Cisticola juncidis', 'Estrilda astrild', 'Histurgops ruficauda', 'Ploceus nigricollis', 
 #                 'Cisticola brunnescens', 'Chrysococcyx cupreus', 'Tauraco hartlaubi', 'Ploceus castaneiceps', 'Nigrita canicapilla', 
 #                 'Nectarinia kilimensis', 'Lanius collaris', 'Terpsiphone viridis', 'Oriolus auratus', 'Bubo capensis', 'Bubo africanus', 'Eremopterix leucopareia')
@@ -232,13 +232,13 @@ if (!file.exists(paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"
             geom_polygon(data = TZ_no_lakes, aes(x = long, y = lat, group = group), 
                          colour = "black", fill = NA) +
             geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 0 & as.data.frame(atlas_sp)$date_index == 1, ], 
-                       aes(x = Long, y = Lat, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
+                       aes(x = x, y = y, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
             geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 1 & as.data.frame(atlas_sp)$date_index == 1, ], 
-                       aes(x = Long, y = Lat, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
+                       aes(x = x, y = y, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
             geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 1, ],
-                       aes(x = LONGITUDE, y = LATITUDE, fill = "Absence"), pch = 21, alpha = 0.5) +
+                       aes(x = x, y = y, fill = "Absence"), pch = 21, alpha = 0.5) +
             geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 1, ],
-                       aes(x = LONGITUDE, y = LATITUDE, fill = "Presence"), pch = 23, cex = 2) +
+                       aes(x = x, y = y, fill = "Presence"), pch = 23, cex = 2) +
             theme_void() +
             coord_equal() +
             scale_fill_discrete(name = 'eBird') +
@@ -250,13 +250,13 @@ if (!file.exists(paste0("figures/", sub(" ", "_", species), "_raw_ccurrence.png"
             geom_polygon(data = TZ_no_lakes, aes(x = long, y = lat, group = group), 
                          colour = "black", fill = NA) +
             geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 0 & as.data.frame(atlas_sp)$date_index == 2, ], 
-                       aes(x = Long, y = Lat, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
+                       aes(x = x, y = y, col = "Absence"), alpha = 0.4, pch = 15, cex = 2) +
             geom_point(data = as.data.frame(atlas_sp)[as.data.frame(atlas_sp)$presence == 1 & as.data.frame(atlas_sp)$date_index == 2, ], 
-                       aes(x = Long, y = Lat, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
+                       aes(x = x, y = y, col = "Presence"), alpha = 0.4, pch = 15, cex = 3) +
             geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 0 & as.data.frame(ebird_sp)$date_index == 2, ], 
-                       aes(x = LONGITUDE, y = LATITUDE, fill = "Absence"), pch = 21, alpha = 0.5) +
+                       aes(x = x, y = y, fill = "Absence"), pch = 21, alpha = 0.5) +
             geom_point(data = as.data.frame(ebird_sp)[as.data.frame(ebird_sp)$presence == 1 & as.data.frame(ebird_sp)$date_index == 2, ], 
-                       aes(x = LONGITUDE, y = LATITUDE, fill = "Presence"), pch = 23, cex = 2) +
+                       aes(x = x, y = y, fill = "Presence"), pch = 23, cex = 2) +
             theme_void() +
             coord_equal() +
             scale_fill_discrete(name = 'eBird') +
@@ -539,55 +539,55 @@ form_2 <- resp ~ 0 +
 # towards zero, consider a larger precision, e.g. prec = 0.001^2.
 # The default: INLA::inla.set.control.fixed.default()
 
-# Add linear combinations to identify covariate importance
-TZ_lc_noTempMax <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                      atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                      annual_rain_1 = SP_Points_data$annual_rain_1,
-                                      annual_rain_2 = SP_Points_data$annual_rain_2,
-                                      max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                      max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                      BG_1 = SP_Points_data$BG_1,
-                                      BG_2 = SP_Points_data$BG_2,
-                                      indicator = SP_Points_data$indicator)
-names(TZ_lc_noTempMax) <- paste0("TZ_lc_noTempMax", 1:NROW(SP_Points_data))
+# # Add linear combinations to identify covariate importance
+# TZ_lc_noTempMax <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+#                                       atlas_intercept = rep(1, NROW(SP_Points_data)),
+#                                       annual_rain_1 = SP_Points_data$annual_rain_1,
+#                                       annual_rain_2 = SP_Points_data$annual_rain_2,
+#                                       max_dryspell_1 =SP_Points_data$max_dryspell_1,
+#                                       max_dryspell_2 = SP_Points_data$max_dryspell_2,
+#                                       BG_1 = SP_Points_data$BG_1,
+#                                       BG_2 = SP_Points_data$BG_2,
+#                                       indicator = SP_Points_data$indicator)
+# names(TZ_lc_noTempMax) <- paste0("TZ_lc_noTempMax", 1:NROW(SP_Points_data))
+# 
+# TZ_lc_noRain <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+#                                    atlas_intercept = rep(1, NROW(SP_Points_data)),
+#                                    max_dryspell_1 =SP_Points_data$max_dryspell_1,
+#                                    max_dryspell_2 = SP_Points_data$max_dryspell_2,
+#                                    hottest_temp_1 = SP_Points_data$hottest_temp_1,
+#                                    hottest_temp_2 = SP_Points_data$hottest_temp_2,
+#                                    BG_1 = SP_Points_data$BG_1,
+#                                    BG_2 = SP_Points_data$BG_2,
+#                                    x = SP_Points_data$x,
+#                                    y = SP_Points_data$y,
+#                                    indicator = SP_Points_data$indicator)
+# names(TZ_lc_noRain) <- paste0("TZ_lc_noRain", 1:NROW(SP_Points_data))
+# 
+# TZ_lc_noDryspell <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+#                                    atlas_intercept = rep(1, NROW(SP_Points_data)),
+#                                    annual_rain_1 = SP_Points_data$annual_rain_1,
+#                                    annual_rain_2 = SP_Points_data$annual_rain_2,
+#                                    hottest_temp_1 = SP_Points_data$hottest_temp_1,
+#                                    hottest_temp_2 = SP_Points_data$hottest_temp_2,
+#                                    BG_1 = SP_Points_data$BG_1,
+#                                    BG_2 = SP_Points_data$BG_2,
+#                                    indicator = SP_Points_data$indicator)
+# names(TZ_lc_noDryspell) <- paste0("TZ_lc_noDryspell", 1:NROW(SP_Points_data))
+# 
+# TZ_lc_noBG <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+#                                        atlas_intercept = rep(1, NROW(SP_Points_data)),
+#                                        annual_rain_1 = SP_Points_data$annual_rain_1,
+#                                        annual_rain_2 = SP_Points_data$annual_rain_2,
+#                                        max_dryspell_1 =SP_Points_data$max_dryspell_1,
+#                                        max_dryspell_2 = SP_Points_data$max_dryspell_2,
+#                                        hottest_temp_1 = SP_Points_data$hottest_temp_1,
+#                                        hottest_temp_2 = SP_Points_data$hottest_temp_2)
+# names(TZ_lc_noBG) <- paste0("TZ_lc_noBG", 1:NROW(SP_Points_data))
 
-TZ_lc_noRain <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                   atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                   max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                   max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                   hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                   hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                   BG_1 = SP_Points_data$BG_1,
-                                   BG_2 = SP_Points_data$BG_2,
-                                   x = SP_Points_data$x,
-                                   y = SP_Points_data$y,
-                                   indicator = SP_Points_data$indicator)
-names(TZ_lc_noRain) <- paste0("TZ_lc_noRain", 1:NROW(SP_Points_data))
-
-TZ_lc_noDryspell <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                   atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                   annual_rain_1 = SP_Points_data$annual_rain_1,
-                                   annual_rain_2 = SP_Points_data$annual_rain_2,
-                                   hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                   hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                   BG_1 = SP_Points_data$BG_1,
-                                   BG_2 = SP_Points_data$BG_2,
-                                   indicator = SP_Points_data$indicator)
-names(TZ_lc_noDryspell) <- paste0("TZ_lc_noDryspell", 1:NROW(SP_Points_data))
-
-TZ_lc_noBG <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                       atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                       annual_rain_1 = SP_Points_data$annual_rain_1,
-                                       annual_rain_2 = SP_Points_data$annual_rain_2,
-                                       max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                       max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                       hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                       hottest_temp_2 = SP_Points_data$hottest_temp_2)
-names(TZ_lc_noBG) <- paste0("TZ_lc_noBG", 1:NROW(SP_Points_data))
 
 
-
-lc_combined <- c(all_lc, TZ_lc_noRain, TZ_lc_noTempMax) #, TZ_lc_noDryspell, TZ_lc_noTempMax, TZ_lc_noBG)
+# lc_combined <- c(all_lc, TZ_lc_noRain, TZ_lc_noTempMax) #, TZ_lc_noDryspell, TZ_lc_noTempMax, TZ_lc_noBG)
 
 # 1: Get into same spatial points shape as random effect and full prediction
 # 2: Add random effect to those spatial points
@@ -671,8 +671,8 @@ ggsave(plot = effects_plot, filename = paste0("figures/effects_", sub(" ", "_", 
 # 12. Prediction plots
 # ------------------------------------------------------------------------------------------------------------------------
 pred.index <- inla.stack.index(stack = integrated_stack, tag = "pred")$data
-lincomb.index.temp <- grep('TZ_lc_noTempMax', rownames(model$summary.lincomb.derived))
-lincomb.index.rain <- grep('TZ_lc_noRain', rownames(model$summary.lincomb.derived))
+# lincomb.index.temp <- grep('TZ_lc_noTempMax', rownames(model$summary.lincomb.derived))
+# lincomb.index.rain <- grep('TZ_lc_noRain', rownames(model$summary.lincomb.derived))
 
 IP_df <- data.frame(IP_sp) %>% dplyr::select(date_index, x, y)
 
@@ -689,8 +689,8 @@ IP_df$no_rain_median <- model$summary.lincomb.derived[lincomb.index.rain, "0.5qu
 
 pred_data <- data.frame(median = IP_df$pred_median,
                         median_P = IP_df$pred_median_P,
-                        no_temp_median = IP_df$no_temp_median,
-                        no_rain_median = IP_df$no_rain_median,
+                        # no_temp_median = IP_df$no_temp_median,
+                        # no_rain_median = IP_df$no_rain_median,
                         sd = IP_df$pred_sd,
                         ind = rep(c(1,2), each = length(IP_df$pred_median)/2))
 
@@ -791,25 +791,25 @@ ggsave(plot = r2_random_linear, filename =paste0("figures/r2_randomLinear_", sub
                                               ".png"),
        width = 20, height = 20, units = 'cm')
 
-# ------------------------------------------------------------------------------------------------------------------------
-# 15. Relative importance of covariates
-# ------------------------------------------------------------------------------------------------------------------------
-# Get the total predictions for the model without a given covariate
-pred_data_spdf$no_temp_total <- pred_data_spdf$no_temp_median + pred_data_spdf$random
-pred_data_spdf$no_rain_total <- pred_data_spdf$no_rain_median + pred_data_spdf$random
-spplot(pred_data_spdf)
-
-# Overall covariate importance
-# 1- (cor(pred_data_spdf$no_rain_total, pred_data_spdf$median))^2
-1 - rsq(pred_data_spdf$median, pred_data_spdf$no_rain_total)
-
-# Proportion of explained fixed effect variance
-# 1- (cor(pred_data_spdf$no_temp_new, pred_data_spdf$fixed_effect))^2
-1- rsq(pred_data_spdf$fixed_effect, pred_data_spdf$no_rain_median)
-
-# What happens with effort?
-# Try linear combination without effort, check if that equals fixed effects computed by
-# subtracting random effects from fitted (not transformed to probability)
+# # ------------------------------------------------------------------------------------------------------------------------
+# # 15. Relative importance of covariates
+# # ------------------------------------------------------------------------------------------------------------------------
+# # Get the total predictions for the model without a given covariate
+# pred_data_spdf$no_temp_total <- pred_data_spdf$no_temp_median + pred_data_spdf$random
+# pred_data_spdf$no_rain_total <- pred_data_spdf$no_rain_median + pred_data_spdf$random
+# spplot(pred_data_spdf)
+# 
+# # Overall covariate importance
+# # 1- (cor(pred_data_spdf$no_rain_total, pred_data_spdf$median))^2
+# 1 - rsq(pred_data_spdf$median, pred_data_spdf$no_rain_total)
+# 
+# # Proportion of explained fixed effect variance
+# # 1- (cor(pred_data_spdf$no_temp_new, pred_data_spdf$fixed_effect))^2
+# 1- rsq(pred_data_spdf$fixed_effect, pred_data_spdf$no_rain_median)
+# 
+# # What happens with effort?
+# # Try linear combination without effort, check if that equals fixed effects computed by
+# # subtracting random effects from fitted (not transformed to probability)
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 16. Range change
@@ -835,21 +835,21 @@ col_plot <- ggplot() +
     theme(plot.title = element_text(hjust = 0.5, vjust = 5))
 
 ext_plot <- ggplot() +
-    gg(range_diff, aes(x = Long, y = Lat, fill = extinction)) +
+    gg(range_diff, aes(x = x, y = y, fill = extinction)) +
     coord_equal() +
     viridis::scale_fill_viridis("P(Extinction)") +
     theme_void() +
     theme(plot.title = element_text(hjust = 0.5, vjust = 5))
 
 con_absence_plot <- ggplot() +
-    gg(range_diff, aes(x = Long, y = Lat, fill = con_absence)) +
+    gg(range_diff, aes(x = x, y = y, fill = con_absence)) +
     coord_equal() +
     viridis::scale_fill_viridis("P(Continued absence)") +
     theme_void() +
     theme(plot.title = element_text(hjust = 0.5, vjust = 5))
 
 con_presence_plot <- ggplot() +
-    gg(range_diff, aes(x = Long, y = Lat, fill = con_presence)) +
+    gg(range_diff, aes(x = x, y = y, fill = con_presence)) +
     coord_equal() +
     viridis::scale_fill_viridis("P(Continued presence)") +
     theme_void() +
