@@ -58,14 +58,18 @@ TZ_ERA5_hottest_80_00 <- raster('TZbuff_ERA5_hottest_temperature_1981_1999.tif')
 TZ_ERA5_hottest_80_00[is.nan(TZ_ERA5_hottest_80_00)] <- NA
 TZ_ERA5_hottest_00_20 <- raster('TZbuff_ERA5_hottest_temperature_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_ERA5_hottest_00_20[is.nan(TZ_ERA5_hottest_00_20)] <- NA
-TZ_dryspell_80_00 <- raster('TZbuff_median_annual_dryspell_length_1981_1999.tif') 
+TZ_dryspell_80_00 <- raster('TZbuff_median_annual_dryspell_length_1981_1999.tif') %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_dryspell_80_00[is.nan(TZ_dryspell_80_00)] <- NA
-TZ_dryspell_00_20 <- raster('TZbuff_median_annual_dryspell_length_2000_2020.tif')
+TZ_dryspell_00_20 <- raster('TZbuff_median_annual_dryspell_length_2000_2020.tif') %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_dryspell_00_20[is.nan(TZ_dryspell_00_20)] <- NA
 TZ_BG_90_99 <- raster('BG_1990_1999_1000m.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_BG_90_99[is.nan(TZ_BG_90_99)] <- NA
 TZ_BG_10_19 <- raster('BG_2010_2019_1000m.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
 TZ_BG_10_19[is.nan(TZ_BG_10_19)] <- NA
+TZ_HFP_93 <- raster('HFP1993.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_HFP_93[is.nan(TZ_HFP_93)] <- NA
+TZ_HFP_09 <- raster('HFP2009.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)
+TZ_HFP_09[is.nan(TZ_HFP_09)] <- NA
 
 # BG layer has large gaps in data, this needs to be accounted for. Manually create indicator layer and BG interaction layer,
 # to make sure model ignores areas with NA BG
@@ -82,27 +86,29 @@ values(indicator_2010s)[is.na(values(indicator_2010s))] <- 0
 temporal_variables <- stack(TZ_annual_median_rain_80_00, TZ_annual_median_rain_00_20, 
                             TZ_ERA5_hottest_80_00, TZ_ERA5_hottest_00_20,
                             TZ_dryspell_80_00, TZ_dryspell_00_20,
-                            TZ_BG_90_99, TZ_BG_10_19, indicator_90s, indicator_2010s)
+                            TZ_BG_90_99, TZ_BG_10_19, indicator_90s, indicator_2010s,
+                            TZ_HFP_93, TZ_HFP_09)
 
 names(temporal_variables) <- c('TZ_ann_rain_1980s', 'TZ_ann_rain_2000s', 
                                'TZ_max_temp_1980s', 'TZ_max_temp_2000s',
                                'TZ_dryspell_1980s', 'TZ_dryspell_2000s',
-                               'TZ_BG_90_99', 'TZ_BG_10_19', 'indicator_90s', 'indicator_2010s')
+                               'TZ_BG_90_99', 'TZ_BG_10_19', 'indicator_90s', 'indicator_2010s',
+                               'TZ_HFP_1993', 'TZ_HFP_2009')
 
 temporal_variables <- as(temporal_variables, 'SpatialPointsDataFrame')
 
-# Due to the model structure when using form_2, we don't have to separate the different time periods for the linear combinations.
-# Consider them together:
 TZ_ann_rain <- c(temporal_variables@data[["TZ_ann_rain_1980s"]], temporal_variables@data[["TZ_ann_rain_2000s"]])
 TZ_max_temp <- c(temporal_variables@data[["TZ_max_temp_1980s"]], temporal_variables@data[["TZ_max_temp_2000s"]])
 TZ_dryspell <- c(temporal_variables@data[["TZ_dryspell_1980s"]], temporal_variables@data[["TZ_dryspell_2000s"]])
 TZ_BG <- c(temporal_variables@data[["TZ_BG_90_99"]], temporal_variables@data[["TZ_BG_10_19"]])
+TZ_HFP <- c(temporal_variables@data[["TZ_HFP_1993"]], temporal_variables@data[["TZ_HFP_2009"]])
 
 # Prepare remaining data for a GAM model
 temporal_variables <- prepare_GAM(temporal_variables, TZ_ann_rain)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_max_temp)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_dryspell)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_BG)
+temporal_variables <- prepare_GAM(temporal_variables, TZ_HFP)
 
 # Combine the unscaled prediction vectors
 all.seq <- mget(ls(pattern = "TZ_.*.seq"))
@@ -130,9 +136,12 @@ TZ_dryspell_lc <- inla.make.lincombs(ebird_intercept = rep(1, 100),
 TZ_BG_lc       <- inla.make.lincombs(ebird_intercept = rep(1, 100),
                                      BG_1 = TZ_BG_1.s,
                                      BG_2 = TZ_BG_2.s); names(TZ_BG_lc) <- paste0("TZ_BG_lc", 1:100)
+TZ_HFP_lc       <- inla.make.lincombs(ebird_intercept = rep(1, 100),
+                                     HFP_1 = TZ_HFP_1.s,
+                                     HFP_2 = TZ_HFP_2.s); names(TZ_HFP_lc) <- paste0("TZ_HFP_lc", 1:100)
 
 # Combine all linear combinations, to include in the final model.
-all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc, TZ_BG_lc)
+all_lc <- c(TZ_max_temp_lc, TZ_ann_rain_lc, TZ_dryspell_lc, TZ_BG_lc, TZ_HFP_lc)
 
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Philip_data')
 setwd('/Users/joriswiethase/Google Drive (jhw538@york.ac.uk)/Work/PhD_York/Chapter3/TZ_inla_spatial_temporal/model_data')
