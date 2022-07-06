@@ -32,6 +32,39 @@ ebird_full <- fread("ebd_TZ_relMay-2021.txt") %>%
 atlas_full <- fread("TZ_bird_atlas_data.csv") %>%
       filter(!is.na(effort))
 
+atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia olivacea'] <- 'Cyanomitra olivacea'
+atlas_full$Scientific[atlas_full$Scientific == 'Andropadus virens'] <- 'Eurillas virens'
+atlas_full$Scientific[atlas_full$Scientific == 'Gyps rueppellii'] <- 'Gyps africanus'
+atlas_full$Scientific[atlas_full$Scientific == 'Otis kori'] <- 'Ardeotis kori'
+atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis ruficristata'] <- 'Eupodotis gindiana'
+atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis senegalensis'] <- 'Lissotis melanogaster'
+atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis hartlaubii'] <- 'Lissotis hartlaubii'
+atlas_full$Scientific[atlas_full$Scientific == 'Rhinoptilus africanus'] <- 'Smutsornis africanus'
+atlas_full$Scientific[atlas_full$Scientific == 'Coracias naevia'] <- 'Coracias naevius'
+atlas_full$Scientific[atlas_full$Scientific == 'Phoeniculus minor'] <- 'Rhinopomastus minor'
+atlas_full$Scientific[atlas_full$Scientific == 'Tockus erythrorhyncus'] <- 'Tockus erythrorhynchus'
+atlas_full$Scientific[atlas_full$Scientific == 'Lybius diadematus'] <- 'Tricholaema diademata'
+atlas_full$Scientific[atlas_full$Scientific == 'Lybius melanocephalus'] <- 'Tricholaema melanocephala'
+atlas_full$Scientific[atlas_full$Scientific == 'Mirafra poecilosterna'] <- 'Calendulauda poecilosterna'
+atlas_full$Scientific[atlas_full$Scientific == 'Hippolais pallida'] <- 'Iduna pallida'
+atlas_full$Scientific[atlas_full$Scientific == 'Parisoma boehmi'] <- 'Sylvia boehmi'
+atlas_full$Scientific[atlas_full$Scientific == 'Cisticola aridula'] <- 'Cisticola aridulus'
+atlas_full$Scientific[atlas_full$Scientific == 'Cisticola robusta'] <- 'Cisticola robustus'
+atlas_full$Scientific[atlas_full$Scientific == 'Cisticola cinereola'] <- 'Cisticola cinereolus'
+atlas_full$Scientific[atlas_full$Scientific == 'Calamonastes simplex"'] <- 'Calamonastes simplex'
+atlas_full$Scientific[atlas_full$Scientific == 'Empidornis semipartitus'] <- 'Melaenornis semipartitus'
+atlas_full$Scientific[atlas_full$Scientific == 'Turdoides rubiginosus'] <- 'Turdoides hypoleuca'
+atlas_full$Scientific[atlas_full$Scientific == 'Parus fringillinus'] <- 'Melaniparus fringillinus'
+atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia ectarinioides'] <- 'Cinnyris nectarinioides'
+atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia pulchella'] <- 'Cinnyris pulchellus'
+atlas_full$Scientific[atlas_full$Scientific == 'Eurocephalus rueppelli'] <- 'Eurocephalus ruppelli'
+atlas_full$Scientific[atlas_full$Scientific == 'Spreo superbus'] <- 'Lamprotornis superbus'
+atlas_full$Scientific[atlas_full$Scientific == 'Spreo hildebrandti'] <- 'Lamprotornis hildebrandti'
+atlas_full$Scientific[atlas_full$Scientific == 'Spreo fischeri'] <- 'Lamprotornis fischeri'
+atlas_full$Scientific[atlas_full$Scientific == 'Cosmopsarus unicolor'] <- 'Lamprotornis unicolor'
+atlas_full$Scientific[atlas_full$Scientific == 'Passer motitentis'] <- 'Passer rufocinctus'
+atlas_full$Scientific[atlas_full$Scientific == 'Petronia pyrgita'] <- 'Gymnoris pyrgita'
+
 proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 # Import and prepare the temporally varying covariates
