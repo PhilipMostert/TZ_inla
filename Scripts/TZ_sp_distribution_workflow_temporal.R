@@ -15,7 +15,7 @@ library(ggthemes)
 library(gridExtra)
 library(ggpubr)
 
-# Random field should not be too smooth (range > 20), and very different between time periods.
+# Random field should not be too smooth (range > maximum study area extent (~10 degrees for TZ outline without buffer)), or very different between time periods.
 # Filter 1: Visually implausible
 # Filter 2: DIC or CPO
 
@@ -137,39 +137,6 @@ if (!file.exists(paste0("model_data/", gsub(" ", "_", species), "_model_data.RDa
       atlas_full <- atlas_full %>%
             filter(time_period != 'x') %>%
             mutate(date_index = ifelse(time_period == '20s',2,1))
-      
-      atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia olivacea'] <- 'Cyanomitra olivacea'
-      atlas_full$Scientific[atlas_full$Scientific == 'Andropadus virens'] <- 'Eurillas virens'
-      atlas_full$Scientific[atlas_full$Scientific == 'Gyps rueppellii'] <- 'Gyps africanus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Otis kori'] <- 'Ardeotis kori'
-      atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis ruficristata'] <- 'Eupodotis gindiana'
-      atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis senegalensis'] <- 'Lissotis melanogaster'
-      atlas_full$Scientific[atlas_full$Scientific == 'Eupodotis hartlaubii'] <- 'Lissotis hartlaubii'
-      atlas_full$Scientific[atlas_full$Scientific == 'Rhinoptilus africanus'] <- 'Smutsornis africanus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Coracias naevia'] <- 'Coracias naevius'
-      atlas_full$Scientific[atlas_full$Scientific == 'Phoeniculus minor'] <- 'Rhinopomastus minor'
-      atlas_full$Scientific[atlas_full$Scientific == 'Tockus erythrorhyncus'] <- 'Tockus erythrorhynchus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Lybius diadematus'] <- 'Tricholaema diademata'
-      atlas_full$Scientific[atlas_full$Scientific == 'Lybius melanocephalus'] <- 'Tricholaema melanocephala'
-      atlas_full$Scientific[atlas_full$Scientific == 'Mirafra poecilosterna'] <- 'Calendulauda poecilosterna'
-      atlas_full$Scientific[atlas_full$Scientific == 'Hippolais pallida'] <- 'Iduna pallida'
-      atlas_full$Scientific[atlas_full$Scientific == 'Parisoma boehmi'] <- 'Sylvia boehmi'
-      atlas_full$Scientific[atlas_full$Scientific == 'Cisticola aridula'] <- 'Cisticola aridulus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Cisticola robusta'] <- 'Cisticola robustus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Cisticola cinereola'] <- 'Cisticola cinereolus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Calamonastes simplex"'] <- 'Calamonastes simplex'
-      atlas_full$Scientific[atlas_full$Scientific == 'Empidornis semipartitus'] <- 'Melaenornis semipartitus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Turdoides rubiginosus'] <- 'Turdoides hypoleuca'
-      atlas_full$Scientific[atlas_full$Scientific == 'Parus fringillinus'] <- 'Melaniparus fringillinus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia ectarinioides'] <- 'Cinnyris nectarinioides'
-      atlas_full$Scientific[atlas_full$Scientific == 'Nectarinia pulchella'] <- 'Cinnyris pulchellus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Eurocephalus rueppelli'] <- 'Eurocephalus ruppelli'
-      atlas_full$Scientific[atlas_full$Scientific == 'Spreo superbus'] <- 'Lamprotornis superbus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Spreo hildebrandti'] <- 'Lamprotornis hildebrandti'
-      atlas_full$Scientific[atlas_full$Scientific == 'Spreo fischeri'] <- 'Lamprotornis fischeri'
-      atlas_full$Scientific[atlas_full$Scientific == 'Cosmopsarus unicolor'] <- 'Lamprotornis unicolor'
-      atlas_full$Scientific[atlas_full$Scientific == 'Passer motitentis'] <- 'Passer rufocinctus'
-      atlas_full$Scientific[atlas_full$Scientific == 'Petronia pyrgita'] <- 'Gymnoris pyrgita'
       
       atlas_filtered <- atlas_full %>% 
             mutate(Scientific = trimws(Scientific, which = 'both')) %>% 
@@ -414,7 +381,7 @@ stk.atlas <- inla.stack(data = list(resp = atlas_sp@data[, 'presence']),
 # Contains the locations and times where we want to make predictions. Code for this is adapted from the 
 # 'MakeProjectionGrid' function.
 
-if(!file.exists(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RData"))){
+if(!file.exists(paste0("model_data/pred_files_E", max.edge,".RData"))){
       # Set grid locations for predictions
       Nxy.scale <- 0.1  # about 10km resolution
       
@@ -475,11 +442,6 @@ if(!file.exists(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RDat
       projmat.pred <- inla.spde.make.A(mesh = Mesh$mesh, 
                                        loc = IP_sp@coords, 
                                        group = IP_sp@data$date_index)
-      
-      save(SP_Points_data, projmat.pred, IP_sp, predcoords, projgrid, xy.in, file = paste0(gsub(" ", "_", species), "_pred_files.RData"))
-} else {
-      load(paste0("model_data/", gsub(" ", "_", species), "_pred_files.RData"))
-}
 
 # ------------------------------------------------------------------------------------------------------------------------
 # 8. Prediction stack
@@ -490,6 +452,12 @@ stk.pred <- inla.stack(tag='pred',
                        effects = list(IP_sp@data,
                                       shared.field = index_set,
                                       eBird.field = index_set_eBird))
+
+      
+      save(stk.pred, SP_Points_data, projmat.pred, IP_sp, predcoords, projgrid, xy.in, file = paste0("model_data/pred_files_E", max.edge,".RData"))
+} else {
+      load(paste0("model_data/pred_files_E", max.edge,".RData"))
+}
 
 # 9. Integration stack
 # ------------------------------------------------------------------------------------------------------------------------
@@ -517,7 +485,7 @@ if (!file.exists(paste0("model_data/stk_ip_E", max.edge,".RData"))) {
       NearestCovs$Intercept <- rep(1,nrow(NearestCovs))
       
       #add coordinate to data part of spatialpoints object if they are given
-      NearestCovs@data[,colnames(NearestCovs@coords)] <- NearestCovs@coords
+      NearestCovs@data[, colnames(NearestCovs@coords)] <- NearestCovs@coords
       covs_duplicated <- rbind(NearestCovs@data, NearestCovs@data)
       covs_duplicated$index <- rep(c(1,2), each = nrow(covs_duplicated)/2)
             
@@ -563,7 +531,7 @@ for (i in 1:length(index_list)){
 # standard deviation being higher than the given number. If 'param = c(4, 0.01)', 
 # P(sd > 4) = 0.01
 sdres <- sd(integrated_stack$effects$data$presence, na.rm = T)
-h.spec <- list(rho = list(prior="pc.prec", param = c(3*sdres, 0.01)))
+h.spec <- list(rho = list(prior="pc.prec", param = c(0.5, 0.01)))
 
 # At each time point, spatial locations are linked through the spde.
 # Across time, the process evolves according to an AR(1) process.
@@ -596,76 +564,8 @@ form_2 <- resp ~ 0 + ebird_intercept + atlas_intercept +
 # ------------------------------------------------------------------------------------------------------------------------
 # 10. INLA model
 # ------------------------------------------------------------------------------------------------------------------------
+
 # Add linear combinations to identify covariate importance
-TZ_lc_noTempMax <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                      atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                      annual_rain_1 = SP_Points_data$annual_rain_1,
-                                      annual_rain_2 = SP_Points_data$annual_rain_2,
-                                      max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                      max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                      HFP_1 = SP_Points_data$HFP_1,
-                                      HFP_2 = SP_Points_data$HFP_2,
-                                      BG_1 = SP_Points_data$BG_1,
-                                      BG_2 = SP_Points_data$BG_2,
-                                      x = SP_Points_data$x,
-                                      y = SP_Points_data$y,
-                                      indicator = SP_Points_data$indicator)
-names(TZ_lc_noTempMax) <- paste0("TZ_lc_noTempMax", 1:NROW(SP_Points_data))
-TZ_lc_noRain <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                   atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                   max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                   max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                   hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                   hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                   HFP_1 = SP_Points_data$HFP_1,
-                                   HFP_2 = SP_Points_data$HFP_2,
-                                   BG_1 = SP_Points_data$BG_1,
-                                   BG_2 = SP_Points_data$BG_2,
-                                   x = SP_Points_data$x,
-                                   y = SP_Points_data$y,
-                                   indicator = SP_Points_data$indicator)
-names(TZ_lc_noRain) <- paste0("TZ_lc_noRain", 1:NROW(SP_Points_data))
-TZ_lc_noDryspell <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                       atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                       annual_rain_1 = SP_Points_data$annual_rain_1,
-                                       annual_rain_2 = SP_Points_data$annual_rain_2,
-                                       hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                       hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                       HFP_1 = SP_Points_data$HFP_1,
-                                       HFP_2 = SP_Points_data$HFP_2,
-                                       BG_1 = SP_Points_data$BG_1,
-                                       BG_2 = SP_Points_data$BG_2,
-                                       x = SP_Points_data$x,
-                                       y = SP_Points_data$y,
-                                       indicator = SP_Points_data$indicator)
-names(TZ_lc_noDryspell) <- paste0("TZ_lc_noDryspell", 1:NROW(SP_Points_data))
-TZ_lc_noBG <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                 atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                 annual_rain_1 = SP_Points_data$annual_rain_1,
-                                 annual_rain_2 = SP_Points_data$annual_rain_2,
-                                 max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                 max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                 hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                 hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                 HFP_1 = SP_Points_data$HFP_1,
-                                 HFP_2 = SP_Points_data$HFP_2,
-                                 x = SP_Points_data$x,
-                                 y = SP_Points_data$y)
-names(TZ_lc_noBG) <- paste0("TZ_lc_noBG", 1:NROW(SP_Points_data))
-TZ_lc_noHFP <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
-                                  atlas_intercept = rep(1, NROW(SP_Points_data)),
-                                  annual_rain_1 = SP_Points_data$annual_rain_1,
-                                  annual_rain_2 = SP_Points_data$annual_rain_2,
-                                  max_dryspell_1 =SP_Points_data$max_dryspell_1,
-                                  max_dryspell_2 = SP_Points_data$max_dryspell_2,
-                                  hottest_temp_1 = SP_Points_data$hottest_temp_1,
-                                  hottest_temp_2 = SP_Points_data$hottest_temp_2,
-                                  BG_1 = SP_Points_data$BG_1,
-                                  BG_2 = SP_Points_data$BG_2,
-                                  x = SP_Points_data$x,
-                                  y = SP_Points_data$y,
-                                  indicator = SP_Points_data$indicator)
-names(TZ_lc_noHFP) <- paste0("TZ_lc_noHFP", 1:NROW(SP_Points_data))
 TZ_lc_allFixed <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
                                      atlas_intercept = rep(1, NROW(SP_Points_data)),
                                      annual_rain_1 = SP_Points_data$annual_rain_1,
@@ -678,12 +578,72 @@ TZ_lc_allFixed <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_dat
                                      HFP_2 = SP_Points_data$HFP_2,
                                      BG_1 = SP_Points_data$BG_1,
                                      BG_2 = SP_Points_data$BG_2,
-                                     x = SP_Points_data$x,
-                                     y = SP_Points_data$y,
                                      indicator = SP_Points_data$indicator)
 names(TZ_lc_allFixed) <- paste0("TZ_lc_allFixed", 1:NROW(SP_Points_data))
-lc_combined <- c(all_lc, TZ_lc_noRain, TZ_lc_noTempMax, TZ_lc_noDryspell, TZ_lc_noBG, TZ_lc_noHFP, TZ_lc_allFixed)
+TZ_lc_noTempMax <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                      atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                      annual_rain_1 = SP_Points_data$annual_rain_1,
+                                      annual_rain_2 = SP_Points_data$annual_rain_2,
+                                      max_dryspell_1 =SP_Points_data$max_dryspell_1,
+                                      max_dryspell_2 = SP_Points_data$max_dryspell_2,
+                                      HFP_1 = SP_Points_data$HFP_1,
+                                      HFP_2 = SP_Points_data$HFP_2,
+                                      BG_1 = SP_Points_data$BG_1,
+                                      BG_2 = SP_Points_data$BG_2,
+                                      indicator = SP_Points_data$indicator)
+names(TZ_lc_noTempMax) <- paste0("TZ_lc_noTempMax", 1:NROW(SP_Points_data))
+TZ_lc_noRain <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                   atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                   max_dryspell_1 =SP_Points_data$max_dryspell_1,
+                                   max_dryspell_2 = SP_Points_data$max_dryspell_2,
+                                   hottest_temp_1 = SP_Points_data$hottest_temp_1,
+                                   hottest_temp_2 = SP_Points_data$hottest_temp_2,
+                                   HFP_1 = SP_Points_data$HFP_1,
+                                   HFP_2 = SP_Points_data$HFP_2,
+                                   BG_1 = SP_Points_data$BG_1,
+                                   BG_2 = SP_Points_data$BG_2,
+                                   indicator = SP_Points_data$indicator)
+names(TZ_lc_noRain) <- paste0("TZ_lc_noRain", 1:NROW(SP_Points_data))
+TZ_lc_noDryspell <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                       atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                       annual_rain_1 = SP_Points_data$annual_rain_1,
+                                       annual_rain_2 = SP_Points_data$annual_rain_2,
+                                       hottest_temp_1 = SP_Points_data$hottest_temp_1,
+                                       hottest_temp_2 = SP_Points_data$hottest_temp_2,
+                                       HFP_1 = SP_Points_data$HFP_1,
+                                       HFP_2 = SP_Points_data$HFP_2,
+                                       BG_1 = SP_Points_data$BG_1,
+                                       BG_2 = SP_Points_data$BG_2,
+                                       indicator = SP_Points_data$indicator)
+names(TZ_lc_noDryspell) <- paste0("TZ_lc_noDryspell", 1:NROW(SP_Points_data))
+TZ_lc_noBG <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                 atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                 annual_rain_1 = SP_Points_data$annual_rain_1,
+                                 annual_rain_2 = SP_Points_data$annual_rain_2,
+                                 max_dryspell_1 =SP_Points_data$max_dryspell_1,
+                                 max_dryspell_2 = SP_Points_data$max_dryspell_2,
+                                 hottest_temp_1 = SP_Points_data$hottest_temp_1,
+                                 hottest_temp_2 = SP_Points_data$hottest_temp_2,
+                                 HFP_1 = SP_Points_data$HFP_1,
+                                 HFP_2 = SP_Points_data$HFP_2)
+names(TZ_lc_noBG) <- paste0("TZ_lc_noBG", 1:NROW(SP_Points_data))
+TZ_lc_noHFP <- inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),
+                                  atlas_intercept = rep(1, NROW(SP_Points_data)),
+                                  annual_rain_1 = SP_Points_data$annual_rain_1,
+                                  annual_rain_2 = SP_Points_data$annual_rain_2,
+                                  max_dryspell_1 =SP_Points_data$max_dryspell_1,
+                                  max_dryspell_2 = SP_Points_data$max_dryspell_2,
+                                  hottest_temp_1 = SP_Points_data$hottest_temp_1,
+                                  hottest_temp_2 = SP_Points_data$hottest_temp_2,
+                                  BG_1 = SP_Points_data$BG_1,
+                                  BG_2 = SP_Points_data$BG_2,
+                                  indicator = SP_Points_data$indicator)
+names(TZ_lc_noHFP) <- paste0("TZ_lc_noHFP", 1:NROW(SP_Points_data))
 
+lc_combined <- c(all_lc, TZ_lc_noRain, TZ_lc_noTempMax, TZ_lc_noDryspell, TZ_lc_noBG, TZ_lc_noHFP, TZ_lc_allFixed)
+save(lc_combined, file = "model_data/lc_combined.RData")
+load("model_data/lc_combined.RData")
+      
 # Gaussian priors
 C.F. <- list(
       mean = fixed_mean,
@@ -782,7 +742,7 @@ IP_df$no_rain_median <- model$summary.lincomb.derived[lincomb.index.rain, "0.5qu
 IP_df$no_dry_median <- model$summary.lincomb.derived[lincomb.index.dry, "0.5quant"]
 IP_df$no_BG_median <- model$summary.lincomb.derived[lincomb.index.BG, "0.5quant"]
 IP_df$no_HFP_median <- model$summary.lincomb.derived[lincomb.index.HFP, "0.5quant"]
-IP_df$allFixed_median <- model$summary.lincomb.derived[TZ_lc_allFixed, "0.5quant"]
+IP_df$allFixed_median <- model$summary.lincomb.derived[lincomb.index.allFixed, "0.5quant"]
 
 pred_data <- data.frame(median = IP_df$pred_median,
                         median_P = IP_df$pred_median_P,
@@ -892,9 +852,7 @@ ggsave(plot = maps_combined, filename =paste0("figures/maps_", sub(" ", "_", spe
 # 14. Diagnostic plot
 # ------------------------------------------------------------------------------------------------------------------------
 # Find out how much of the variation in linear predictions is explained by the random effects alone
-pred_data_spdf$random_shared <- spatObj$median 
-pred_data_spdf$random_ebird <- spatObj2$median 
-pred_data_spdf$random <- pred_data_spdf$random_shared + pred_data_spdf$random_ebird
+pred_data_spdf$random <- pred_data_spdf$median - pred_data_spdf$allFixed_median
 
 rsq <- function(x, y) summary(lm(y~x))$r.squared
 rsquared <- rsq(pred_data_spdf$median, pred_data_spdf$random_shared)
@@ -930,7 +888,6 @@ ggsave(plot = r2_random_linear, filename =paste0("figures/r2_randomLinear_", sub
 # 16. Range change
 # ------------------------------------------------------------------------------------------------------------------------
 range_diff <- pred_data_spdf
-#
 dist_20s <- range_diff@data[["median_P"]][range_diff@data[["ind"]] ==  "2000-2020"]
 dist_80s <- range_diff@data[["median_P"]][range_diff@data[["ind"]] ==  "1980-1999"]
 range_diff@data[["median_P"]] <- dist_20s - dist_80s
@@ -983,4 +940,3 @@ ggsave(plot = range_plots_comb, filename =paste0("figures/difference_", sub(" ",
                                                "_mean", fixed_mean, "_prec", fixed_precision,
                                                ".png"),
      width = 18, height = 18, units = 'cm')
-
