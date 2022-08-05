@@ -682,8 +682,9 @@ original_values <- data.frame(orig_values = unlist(all.seq)) %>%
 # Value of intercept, which one is sensible? None of them, just pick one that gives good visualisation.
 # Accept it doesn't mean much ecologically, pick a number that makes the plots look nice.
 
-
-scale_params <- median(model$summary.lincomb.derived$`0.5quant`[grep("TZ_ann_rain|TZ_BG|TZ_dryspell|TZ_max_temp|TZ_HFP", rownames(model$summary.lincomb.derived))])
+# Scale effect plots so that flat trends lie around the median
+scale_params <- median(model$summary.lincomb.derived$`0.5quant`[grep("TZ_ann_rain|TZ_BG|TZ_dryspell|TZ_max_temp|TZ_HFP", 
+                                                                     rownames(model$summary.lincomb.derived))])
 effect_combs <- data.frame(covariate = gsub('[[:digit:]]+', '', sub("*_lc\\d+", "", rownames(model$summary.lincomb.derived))),
                            sequence = as.numeric(gsub("\\D", "", rownames(model$summary.lincomb.derived))),
                            quant_05 = inla.link.cloglog((model$summary.lincomb.derived$`0.5quant` - scale_params) - 0.36, inverse = TRUE),
@@ -898,6 +899,11 @@ range_diff@data[["con_presence"]] <- (dist_80s) * (dist_20s) # probability of co
 
 # net range expansion:
 range_exp <- sum(dist_20s - dist_80s, na.rm = TRUE) # expected number of pixels that have changed
+sum(range_diff@data[["colonisation"]])
+sum(range_diff@data[["extinction"]])
+
+
+
 
 col_plot <- ggplot() +
     gg(data = range_diff, aes(x = x, y = y, fill = colonisation)) +
