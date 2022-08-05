@@ -11,3 +11,4 @@ HPC_results/
 TZ_inla_spatial_temporal.Rproj
 >>>>>>> 3672ad959c84e06b118707f3ce772868c7508bcf
 .DS_Store
+Scripts/results_figures_old.R
