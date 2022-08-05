@@ -138,6 +138,7 @@ TZ_HFP <- c(temporal_variables@data[["TZ_HFP_1993"]], temporal_variables@data[["
 
 # Prepare remaining data for a GAM model
 temporal_variables <- prepare_GAM(temporal_variables, TZ_ann_rain)
+temporal_variables <- prepare_GAM(temporal_variables, TZ_ann_rain)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_max_temp)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_dryspell)
 temporal_variables <- prepare_GAM(temporal_variables, TZ_BG)
