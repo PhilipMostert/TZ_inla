@@ -220,63 +220,104 @@ cloglog_inv <- function(x){
 # 
 # 
 # 
-lincomb_output <- function(model, data){
-      lincomb_out_df <- data.frame(model$summary.lincomb.derived) %>% 
-            mutate(ID = gsub('[[:digit:]]+', '', rownames(.))) %>% 
-            dplyr::select(-mode, -kld, -mean, -sd) %>% 
-            pivot_wider(names_from = ID, values_from = c(2:4),
-                        names_glue = "{ID}_{.value}") %>% 
-            unnest()
-      
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-                len = 100)
-      lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-            seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-                max(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-                len = 100)
-      
-      return(lincomb_out_df)
-}
+# lincomb_output <- function(model, data){
+#       lincomb_out_df <- data.frame(model$summary.lincomb.derived) %>% 
+#             mutate(ID = gsub('[[:digit:]]+', '', rownames(.))) %>% 
+#             dplyr::select(-mode, -kld, -mean, -sd) %>% 
+#             pivot_wider(names_from = ID, values_from = c(2:4),
+#                         names_glue = "{ID}_{.value}",
+#                         values_fn = list) %>% 
+#             unnest()
+#       
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
+#                 len = 100)
+#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
+#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
+#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
+#                 len = 100)
+#       
+#       return(lincomb_out_df)
+# }
 
 make_forest_plot <- function(inla_model, label, col){
       model_fixed <- data.frame(inla_model$summary.fixed) %>% 
-            mutate(ID = c("Intercept", "Trophic level: Carnivore", "Trophic level: Herbivore", 
-                          "Primary lifestyle: Generalist", "Primary lifestyle: Insessorial", "Primary lifestyle: Terrestrial",
-                          "Migratory ability: Moderate", "Migratory ability: High",
-                          "Bare ground cover", "Annual rainfall", "Hottest temperature", "Dryspell duration",
-                          "Human footprint", "Wing length", "Dorsal reflectance")
-            )
-      model_fixed$ID <- factor(model_fixed$ID, levels = c("Trophic level: Carnivore", "Trophic level: Herbivore", 
-                                                          "Primary lifestyle: Generalist", "Primary lifestyle: Insessorial", "Primary lifestyle: Terrestrial",
-                                                          "Migratory ability: Moderate", "Migratory ability: High", "Wing length", "Dorsal reflectance",
-                                                          "Bare ground cover", "Annual rainfall", "Hottest temperature", "Dryspell duration", "Human footprint",
+            mutate(ID = rownames(.))
+      
+      if(label == "Niche breadth"){
+            model_fixed <- model_fixed %>% 
+                  mutate(ID = replace(ID, ID == "(Intercept)", "Intercept"),
+                         ID = replace(ID, ID == "Trophic.LevelOmnivore", "Trophic level: Omnivore"),
+                         ID = replace(ID, ID == "Trophic.LevelHerbivore", "Trophic level: Herbivore"),
+                         ID = replace(ID, ID == "Primary.LifestyleGeneralist", "Primary lifestyle: Generalist"),
+                         ID = replace(ID, ID == "Primary.LifestyleAerial", "Primary lifestyle: Aerial"),
+                         ID = replace(ID, ID == "Primary.LifestyleTerrestrial", "Primary lifestyle: Terrestrial"),
+                         ID = replace(ID, ID == "Migratory_abilityhigh", "Migratory ability: High"),
+                         ID = replace(ID, ID == "Migratory_abilitymoderate", "Migratory ability: Moderate"),
+                         ID = replace(ID, ID == "BG_breadth", "Bare ground cover"),
+                         ID = replace(ID, ID == "rain_breadth", "Annual rainfall"),
+                         ID = replace(ID, ID == "temp_breadth", "Hottest temperature"),
+                         ID = replace(ID, ID == "dry_breadth", "Dry spell duration"),
+                         ID = replace(ID, ID == "HFP_breadth", "Human footprint"),
+                         ID = replace(ID, ID == "Wing.Length", "Wing length"),
+                         ID = replace(ID, ID == "avg.r", "Dorsal reflectance"))
+      }
+      
+      if(label == "Sensitivity"){
+            model_fixed <- model_fixed %>% 
+                  mutate(ID = replace(ID, ID == "(Intercept)", "Intercept"),
+                         ID = replace(ID, ID == "Trophic.LevelOmnivore", "Trophic level: Omnivore"),
+                         ID = replace(ID, ID == "Trophic.LevelHerbivore", "Trophic level: Herbivore"),
+                         ID = replace(ID, ID == "Primary.LifestyleGeneralist", "Primary lifestyle: Generalist"),
+                         ID = replace(ID, ID == "Primary.LifestyleAerial", "Primary lifestyle: Aerial"),
+                         ID = replace(ID, ID == "Primary.LifestyleTerrestrial", "Primary lifestyle: Terrestrial"),
+                         ID = replace(ID, ID == "Migratory_abilityhigh", "Migratory ability: High"),
+                         ID = replace(ID, ID == "Migratory_abilitymoderate", "Migratory ability: Moderate"),
+                         ID = replace(ID, ID == "BG_imp", "Bare ground cover"),
+                         ID = replace(ID, ID == "rain_imp", "Annual rainfall"),
+                         ID = replace(ID, ID == "temp_imp", "Hottest temperature"),
+                         ID = replace(ID, ID == "dry_imp", "Dry spell duration"),
+                         ID = replace(ID, ID == "HFP_imp", "Human footprint"),
+                         ID = replace(ID, ID == "Wing.Length", "Wing length"),
+                         ID = replace(ID, ID == "avg.r", "Dorsal reflectance"))
+      }
+            
+      model_fixed$ID <- factor(model_fixed$ID, levels = c("Trophic level: Omnivore", "Trophic level: Herbivore", 
+                                                          "Primary lifestyle: Generalist", "Primary lifestyle: Aerial", "Primary lifestyle: Terrestrial",
+                                                          "Migratory ability: High", "Migratory ability: Moderate", "Wing length", "Dorsal reflectance",
+                                                          "Bare ground cover", "Annual rainfall", "Hottest temperature", "Dry spell duration", "Human footprint",
                                                           "Intercept"))
       model_fixed$significant <- ifelse((model_fixed$X0.025quant > 0 & model_fixed$X0.975quant > 0)|(model_fixed$X0.025quant < 0 & model_fixed$X0.975quant < 0), "yes", "no")
       
       forest_plot <- ggplot() + 
-            annotate("text", x = 9.8, y = max(inla_model$summary.fixed$`0.975quant`), col = col, label = label) +
+            annotate("text", x = 7, y = max(inla_model$summary.fixed$`0.975quant`) + 0.1*max(inla_model$summary.fixed$`0.975quant`), 
+                     col = col, label = label,
+                     hjust = 0) +
             geom_rect(aes(xmin = 1.5, xmax = 6.5, ymin = min(inla_model$summary.fixed$`0.025quant`), 
                           ymax = max(inla_model$summary.fixed$`0.975quant`)),
                       fill = col, col = col, alpha = .3) +
@@ -300,18 +341,24 @@ make_raw_data_plots <- function(inla_model, data, xlabel){
       response <- as.character(inla_model$.args$formula[2])
       plot_list <- vector('list', length(covariates))
       
-      lincomb_data <- lincomb_output(inla_model, data)
-      i <- 4
+      lincomb_data <- data.frame(inla_model$summary.lincomb.derived) %>% 
+            mutate(ID = rownames(.)) %>% 
+            dplyr::select(-mode, -kld, -mean, -sd)
+      
       for (i in 1:length(covariates)){
             if(is.numeric(data[, covariates[i]])){
                   plot_list[[i]] <- local({
                         i <- i
                         p1 <- ggplot() +
                               geom_point(data = data, aes(x = get(covariates[i]), y = get(response))) +
-                              geom_line(data = lincomb_data, aes(x = get(covariates[i]), y =  get(paste0(covariates[i], "_X0.5quant"))), lty = 2, alpha = 0.5) +
-                              geom_ribbon(data = lincomb_data, aes(x = get(covariates[i]), 
-                                                                   ymin = get(paste0(covariates[i], "_X0.025quant")), 
-                                                                   ymax = get(paste0(covariates[i], "_X0.975quant"))), alpha = 0.2) +
+                              geom_line(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ],
+                                        aes(x = seq(min(data[, covariates[i]], na.rm = T), max(data[, covariates[i]], na.rm = T), len = 100),
+                                            y = X0.5quant), lty = 2, alpha = 0.5, col = "red") +
+                              geom_ribbon(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ],
+                                          aes(x = seq(min(data[, covariates[i]], na.rm = T), max(data[, covariates[i]], na.rm = T), len = 100), 
+                                              ymin = X0.025quant, 
+                                              ymax = X0.975quant), 
+                                          alpha = 0.1) +
                               theme_classic() +
                               xlab(covariates[i]) +
                               ylab(xlabel) + 
@@ -322,6 +369,8 @@ make_raw_data_plots <- function(inla_model, data, xlabel){
                         i <- i
                         p2 <- ggplot(data) +
                               geom_boxplot(aes(get(covariates[i]), get(response))) +
+                              geom_point(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ], 
+                                         aes(x = levels(data[, covariates[i]]), y = X0.5quant), col = "red", cex = 2) +
                               theme_classic() +
                               xlab(covariates[i]) +
                               ylab(xlabel)
