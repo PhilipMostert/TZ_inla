@@ -159,7 +159,7 @@ plot(all_obs_80s$pred, all_obs_80s$presence)
 # for the intercept in such models.
 
 form_prop_change <- log_prop_change ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + Wing.Length + avg.r
+      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + HWI + Mass + avg.r
 
 # model_prop_change_gauss <- inla(form_prop_change, data = model_data,
 #                family = "gaussian",
@@ -191,7 +191,7 @@ model_prop_change_robust <- inla(form_prop_change, data = model_data,
 # Robust model is preferred
 
 form_col_log <- relative_colonisation ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + Wing.Length + avg.r
+      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + HWI + Mass + avg.r
 model_col_robust_log <- inla(form_col_log, data = model_data, 
                          family = "T",  
                          lincomb = all_lc_sens,
@@ -203,7 +203,7 @@ model_col_robust_log <- inla(form_col_log, data = model_data,
 # qqline(model_col_robust_log$cpo$pit, distribution = function(p) qunif(p), prob = c(0.1, 0.9))
 
 form_loss_log <- relative_extinction ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + Wing.Length + avg.r
+      BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + HWI + Mass + avg.r
 model_loss_robust_log <- inla(form_loss_log, data = model_data, 
                               family = "T", 
                               lincomb = all_lc_sens,
@@ -216,7 +216,7 @@ model_loss_robust_log <- inla(form_loss_log, data = model_data,
 # qqline(model_loss_robust_log$cpo$pit, distribution = function(p) qunif(p), prob = c(0.1, 0.9))
 
 form_prop_change_breadth <- log_prop_change ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + Wing.Length + avg.r
+      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + HWI + Mass + avg.r
 model_prop_change_breadth_robust <- inla(form_prop_change_breadth, data = model_data, 
                                  family = "T", 
                                  lincomb = all_lc_breadth,
@@ -224,7 +224,7 @@ model_prop_change_breadth_robust <- inla(form_prop_change_breadth, data = model_
                                  control.predictor=list(compute=TRUE))
 
 form_col_log_breadth <- relative_colonisation ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + Wing.Length + avg.r
+      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + HWI + Mass + avg.r
 model_col_log_breadth_robust <- inla(form_col_log_breadth, data = model_data, 
                                  family = "T",  
                                  lincomb = all_lc_breadth,
@@ -232,7 +232,7 @@ model_col_log_breadth_robust <- inla(form_col_log_breadth, data = model_data,
                                  control.predictor=list(compute=TRUE))
 
 form_loss_log_breadth <- relative_extinction ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
-      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + Wing.Length + avg.r
+      rain_breadth + temp_breadth + dry_breadth + HFP_breadth + BG_breadth + HWI + Mass + avg.r
 model_loss_log_breadth_robust <- inla(form_loss_log_breadth, data = model_data, 
                                       family = "T",  
                                       lincomb = all_lc_breadth,
@@ -293,10 +293,10 @@ ggsave(filename = "figures/final_figures/forest_plots_comb_3.png", plot = forest
 # Selected plots showing raw data with model results
 # -----------------------------------------------------------------------------------------------------------------
 figure_data <- model_data
-figure_data$Wing.Length <- exp(unscale_fun(model_data$Wing.Length))
+figure_data$Mass <- exp(unscale_fun(model_data$Mass))
 col_list <- c('BG_imp', 'rain_imp', 'temp_imp', 'dry_imp', 'HFP_imp', 
               'rain_breadth', 'temp_breadth', 'dry_breadth', 'HFP_breadth', 'BG_breadth',
-              'avg.r')
+              'avg.r', 'HWI')
 for (i in 1:length(col_list)){
       figure_data[, col_list[i]] <- unscale_fun(figure_data[, col_list[i]])
 }
@@ -306,7 +306,7 @@ relative_scale <- scale_y_continuous(breaks = log(c(seq(0.5, 3, by = 0.5), 4, 5,
 # Need niche rain and dry total change, total change wing niche, hfp sens extinct
 dry_niche_total <-  make_raw_data_plots(model_prop_change_breadth_robust, figure_data, "dry_breadth", newscale = relative_scale)
 rain_niche_total <-  make_raw_data_plots(model_prop_change_breadth_robust, figure_data, "rain_breadth", newscale = relative_scale)
-wing_niche_total <-  make_raw_data_plots(model_prop_change_breadth_robust, figure_data, "Wing.Length", newscale = relative_scale)
+mass_niche_total <-  make_raw_data_plots(model_prop_change_breadth_robust, figure_data, "Mass", newscale = relative_scale)
 HFP_sens_total <-  make_raw_data_plots(model_loss_robust_log, figure_data, "HFP_imp", newscale = relative_scale)
 
 
@@ -352,7 +352,7 @@ migrationPlot <- ggplot(migration_data) +
       scale_colour_manual(values = c("#000000", "#E69F00")) +
       relative_scale
 
-raw_data_plots <- dry_niche_total + rain_niche_total + wing_niche_total + HFP_sens_total + plot_annotation(tag_levels = 'A') 
+raw_data_plots <- dry_niche_total + rain_niche_total + mass_niche_total + HFP_sens_total + plot_annotation(tag_levels = 'A') 
 
 ggsave(filename = "figures/final_figures/raw_data_plots.png", plot = raw_data_plots, width = 22, height = 15,
        units = "cm", dpi = 400)

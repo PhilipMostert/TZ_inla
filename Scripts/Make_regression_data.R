@@ -45,7 +45,8 @@ all_species <- df_merged %>%
              temp_imp = scale(temp_imp),
              dry_imp = scale(dry_imp),
              HFP_imp = scale(HFP_imp),
-             Wing.Length = scale(log(Wing.Length)),   # We don't expect linear relationship with wing length
+             Mass = scale(log(Mass)),   # We don't expect linear relationship with mass
+             HWI = scale(`Hand-Wing.Index`),
              avg.r = scale(avg.r),
              rain_breadth = scale(rain_breadth),
              temp_breadth = scale(temp_breadth),
@@ -64,14 +65,15 @@ all_species <- df_merged %>%
       dplyr::select(species, relative_colonisation, relative_extinction, area_chance_transitions, sum_dist_80s, log_prop_change, cells_lost, cells_colonised, sum_dist_20s,
                     Trophic.Level, Primary.Lifestyle, Migratory_ability,
                     BG_imp, rain_imp, temp_imp,
-                    dry_imp, HFP_imp, Wing.Length, avg.r,
+                    dry_imp, HFP_imp, Wing.Length, HWI, avg.r,
                     rain_breadth, temp_breadth, dry_breadth,
-                    HFP_breadth, BG_breadth, auc_80s, auc_20s, auc_mean)
+                    HFP_breadth, BG_breadth, auc_80s, auc_20s, auc_mean, Mass)
 
 model_data <-  all_species %>% 
       filter(Trophic.Level != "Scavenger",        # Contains only 1 species
              species != "Neophron percnopterus",  # Dorsal reflectance outlier
-             species != "Trachyphonus erythrocephalus")    #Human footprint sensitivity outlier
+             species != "Trachyphonus erythrocephalus",  #Human footprint sensitivity outlier
+             species != "Struthio camelus")       # Mass outlier
 
 # -----------------------------------------------------------------------------------------------------------------
 # Linear combinations for INLA model
@@ -91,9 +93,12 @@ names(dry_lc) <- paste0("dry_imp", 1:100)
 HFP_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                              HFP_imp = seq(min(model_data$HFP_imp), max(model_data$HFP_imp), len = 100))
 names(HFP_lc) <- paste0("HFP_imp", 1:100)
-wing_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
-                              Wing.Length = seq(min(model_data$Wing.Length), max(model_data$Wing.Length), len = 100))
-names(wing_lc) <- paste0("Wing.Length", 1:100)
+Mass_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+                              Mass = seq(min(model_data$Mass), max(model_data$Mass), len = 100))
+names(Mass_lc) <- paste0("Mass", 1:100)
+HWI_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+                              HWI = seq(min(model_data$HWI), max(model_data$HWI), len = 100))
+names(HWI_lc) <- paste0("HWI", 1:100)
 reflect_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                  avg.r = seq(min(model_data$avg.r, na.rm = TRUE), max(model_data$avg.r, na.rm = TRUE), len = 100))
 names(reflect_lc) <- paste0("avg.r", 1:100)
@@ -111,7 +116,7 @@ Primary.Lifestyle_lc <- inla.make.lincombs("(Intercept)" = rep(1, 4),
                                            Primary.LifestyleGeneralist = c(0, 0, 0, 1))
 names(Primary.Lifestyle_lc) <- paste0("Primary.Lifestyle", 1:4)
 
-all_lc_sens <- c(BG_lc, rain_lc, temp_lc, dry_lc, HFP_lc, wing_lc, reflect_lc, 
+all_lc_sens <- c(BG_lc, rain_lc, temp_lc, dry_lc, HFP_lc, HWI_lc, Mass_lc, reflect_lc, 
                  Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc)
 
 
@@ -130,28 +135,9 @@ names(dry_lc_breadth) <- paste0("dry_breadth", 1:100)
 HFP_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                    HFP_breadth = seq(min(model_data$HFP_breadth), max(model_data$HFP_breadth), len = 100))
 names(HFP_lc_breadth) <- paste0("HFP_breadth", 1:100)
-wing_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
-                              Wing.Length = seq(min(model_data$Wing.Length), max(model_data$Wing.Length), len = 100))
-names(wing_lc) <- paste0("Wing.Length", 1:100)
-reflect_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
-                                 avg.r = seq(min(model_data$avg.r, na.rm = TRUE), max(model_data$avg.r, na.rm = TRUE), len = 100))
-names(reflect_lc) <- paste0("avg.r", 1:100)
-Trophic_level_lc <- inla.make.lincombs("(Intercept)" = rep(1, 3),
-                                       Trophic.LevelHerbivore = c(0, 1, 0),
-                                       Trophic.LevelOmnivore = c(0, 0, 1))
-names(Trophic_level_lc) <- paste0("Trophic.Level", 1:3)
-Migratory_ability_lc <- inla.make.lincombs("(Intercept)" = rep(1, 3),
-                                           Migratory_abilitymoderate = c(0, 1, 0),
-                                           Migratory_abilityhigh = c(0, 0, 1))
-names(Migratory_ability_lc) <- paste0("Migratory_ability", 1:3)
-Primary.Lifestyle_lc <- inla.make.lincombs("(Intercept)" = rep(1, 4),
-                                           Primary.LifestyleTerrestrial = c(0, 1, 0, 0),
-                                           Primary.LifestyleAerial = c(0, 0, 1, 0),
-                                           Primary.LifestyleGeneralist = c(0, 0, 0, 1))
-names(Primary.Lifestyle_lc) <- paste0("Primary.Lifestyle", 1:4)
 
 
-all_lc_breadth <- c(BG_lc_breadth, rain_lc_breadth, temp_lc_breadth, dry_lc_breadth, HFP_lc_breadth, wing_lc, reflect_lc, 
+all_lc_breadth <- c(BG_lc_breadth, rain_lc_breadth, temp_lc_breadth, dry_lc_breadth, HFP_lc_breadth, HWI_lc, Mass_lc, reflect_lc, 
                   Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc)
 
 save(model_data, all_species, all_lc_sens, all_lc_breadth, file = 'model_data/regression_data.RData')

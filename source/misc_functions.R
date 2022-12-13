@@ -280,7 +280,8 @@ make_forest_plot <- function(inla_model, label, col){
                          ID = replace(ID, ID == "temp_breadth", "Hottest temperature"),
                          ID = replace(ID, ID == "dry_breadth", "Dry spell duration"),
                          ID = replace(ID, ID == "HFP_breadth", "Human footprint"),
-                         ID = replace(ID, ID == "Wing.Length", "Wing length"),
+                         ID = replace(ID, ID == "HWI", "Hand-wing Index"),
+                         ID = replace(ID, ID == "Mass", "Body mass"),
                          ID = replace(ID, ID == "avg.r", "Dorsal reflectance"))
       }
       
@@ -299,13 +300,14 @@ make_forest_plot <- function(inla_model, label, col){
                          ID = replace(ID, ID == "temp_imp", "Hottest temperature"),
                          ID = replace(ID, ID == "dry_imp", "Dry spell duration"),
                          ID = replace(ID, ID == "HFP_imp", "Human footprint"),
-                         ID = replace(ID, ID == "Wing.Length", "Wing length"),
+                         ID = replace(ID, ID == "HWI", "Hand-wing Index"),
+                         ID = replace(ID, ID == "Mass", "Body mass"),
                          ID = replace(ID, ID == "avg.r", "Dorsal reflectance"))
       }
             
       model_fixed$ID <- factor(model_fixed$ID, levels = c("Trophic level: Omnivore", "Trophic level: Herbivore", 
                                                           "Primary lifestyle: Generalist", "Primary lifestyle: Aerial", "Primary lifestyle: Terrestrial",
-                                                          "Migratory ability: High", "Migratory ability: Moderate", "Wing length", "Dorsal reflectance",
+                                                          "Migratory ability: High", "Migratory ability: Moderate", "Hand-wing Index", "Body mass", "Dorsal reflectance",
                                                           "Bare ground cover", "Annual rainfall", "Hottest temperature", "Dry spell duration", "Human footprint",
                                                           "Intercept"))
       model_fixed$significant <- ifelse((model_fixed$X0.025quant > 0 & model_fixed$X0.975quant > 0)|(model_fixed$X0.025quant < 0 & model_fixed$X0.975quant < 0), "yes", "no")
@@ -323,7 +325,7 @@ make_forest_plot <- function(inla_model, label, col){
             # geom_text(data = model_fixed %>% filter(significant == "yes"), aes(x = ID, y = X0.975quant), label = "*", nudge_x = 0.1, nudge_y = 0.01) +
             ylab("Posterior estimates") +
             xlab(element_blank()) +
-            theme_minimal(base_size = 16) +
+            theme_minimal() +
             scale_x_discrete(limits=rev) +
             scale_colour_manual(values = c("black", "#D55E00"), guide = "none") +
             theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -351,7 +353,7 @@ get_slope_unscaled <- function(model, data, covar){
       model_fixed <- data.frame(model$summary.fixed) %>% 
             mutate(ID = rownames(.))
       slope <- (exp(model_fixed$mean[model_fixed$ID == covar]) - 1) * 100
-      if(covar == "Wing.Length") {
+      if(covar == "Mass") {
             unit_step <- round(exp(unscale_fun(value = 1, model_data[, covar])), digits = 2)
       } else {
             unit_step <- round(unscale_fun(value = 1, model_data[, covar]), digits = 2)
@@ -370,11 +372,11 @@ make_raw_data_plots <- function(inla_model, data, covariate = NULL, newscale = N
             dplyr::select(-mode, -kld, -mean, -sd)
       xlab_df <- data.frame(var_name = c('BG_imp', 'rain_imp', 'temp_imp', 'dry_imp', 'HFP_imp', 
                                          'rain_breadth', 'temp_breadth', 'dry_breadth', 'HFP_breadth', 'BG_breadth',
-                                         'Wing.Length', 'avg.r',
+                                         'HWI', 'avg.r', 'Mass',
                                          'Trophic.Level', 'Primary.Lifestyle', 'Migratory_ability'), 
                             label_name = c('Bare ground sensitivity', 'Annual rainfall sensitivity', 'Hottest temperature sensitivity', 'Dryspell duration sensitivity', 'Human footprint sensitivity', 
                                            'Annual rainfall niche breadth', 'Hottest temperature niche breadth', 'Dryspell duration niche breadth', 'Human footprint niche breadth', 'Bare ground niche breadth',
-                                           'Wing length [mm]', 'Average dorsal reflectance',
+                                           'Hand-wing index', 'Average dorsal reflectance', 'Body mass',
                                            'Trophic level', 'Primary lifestyle', 'Migratory ability'))
       ylab_df <- data.frame(var_name = c('relative_colonisation', 'relative_extinction', 'log_prop_change'), 
                             label_name = c('Meaningful colonisation', 'Meaningful extinction', 'Proportional change'))
