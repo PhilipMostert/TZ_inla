@@ -2,10 +2,6 @@ library(tidyverse)
 library(readxl)
 library(INLA)
 
-
-
-
-
 # -----------------------------------------------------------------------------------------------------------------
 # Data import & preparation
 # -----------------------------------------------------------------------------------------------------------------
@@ -42,37 +38,44 @@ df_merged$Migratory_ability[df_merged$Migration == 3] <- "high"
 df_merged <- df_merged %>% 
       mutate(Migratory_ability = as.factor(Migratory_ability))
 
-model_data <- df_merged %>% 
+# Use log then scaled for wing length
+all_species <- df_merged %>% 
       mutate(BG_imp = scale(BG_imp),
              rain_imp = scale(rain_imp),
              temp_imp = scale(temp_imp),
              dry_imp = scale(dry_imp),
              HFP_imp = scale(HFP_imp),
-             Wing.Length = scale(Wing.Length),
+             Wing.Length = scale(log(Wing.Length)),   # We don't expect linear relationship with wing length
              avg.r = scale(avg.r),
              rain_breadth = scale(rain_breadth),
              temp_breadth = scale(temp_breadth),
              dry_breadth = scale(dry_breadth),
              HFP_breadth = scale(HFP_breadth),
              BG_breadth = scale(BG_breadth),
-             log_cells_lost_norm = log(cells_lost_norm),
-             log_cells_colonised_norm = log(cells_colonised_norm)) %>% 
-      filter(Trophic.Level != "Scavenger",
-             species != "Neophron percnopterus") %>% 
+             relative_colonisation = log((cells_colonised)/area_chance_transitions),
+             relative_extinction = log((cells_lost)/area_chance_transitions),
+             log_prop_change = log(sum_dist_20s/sum_dist_80s),
+             auc_mean = (auc_80s + auc_20s)/2) %>% 
+      # filter(Trophic.Level != "Scavenger",
+             # species != "Neophron percnopterus") %>% 
       mutate(Migratory_ability = factor(Migratory_ability, levels = c("low", "moderate", "high")),
              Primary.Lifestyle = factor(Primary.Lifestyle, levels = c("Insessorial", "Terrestrial", "Aerial", "Generalist")),
              Trophic.Level = factor(Trophic.Level, levels = c("Carnivore", "Herbivore", "Omnivore"))) %>% 
-      dplyr::select(Trophic.Level, Primary.Lifestyle, Migratory_ability,
+      dplyr::select(species, relative_colonisation, relative_extinction, area_chance_transitions, sum_dist_80s, log_prop_change, cells_lost, cells_colonised, sum_dist_20s,
+                    Trophic.Level, Primary.Lifestyle, Migratory_ability,
                     BG_imp, rain_imp, temp_imp,
                     dry_imp, HFP_imp, Wing.Length, avg.r,
                     rain_breadth, temp_breadth, dry_breadth,
-                    HFP_breadth, BG_breadth, 
-                    log_cells_lost_norm, log_cells_colonised_norm, log_prop_change)
+                    HFP_breadth, BG_breadth, auc_80s, auc_20s, auc_mean)
+
+model_data <-  all_species %>% 
+      filter(Trophic.Level != "Scavenger",        # Contains only 1 species
+             species != "Neophron percnopterus",  # Dorsal reflectance outlier
+             species != "Trachyphonus erythrocephalus")    #Human footprint sensitivity outlier
 
 # -----------------------------------------------------------------------------------------------------------------
 # Linear combinations for INLA model
 # -----------------------------------------------------------------------------------------------------------------
-
 BG_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                             BG_imp = seq(min(model_data$BG_imp), max(model_data$BG_imp), len = 100))
 names(BG_lc) <- paste0("BG_imp", 1:100)
@@ -108,84 +111,25 @@ Primary.Lifestyle_lc <- inla.make.lincombs("(Intercept)" = rep(1, 4),
                                            Primary.LifestyleGeneralist = c(0, 0, 0, 1))
 names(Primary.Lifestyle_lc) <- paste0("Primary.Lifestyle", 1:4)
 
-
-LC_no_lifestyle_sens <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                           Trophic.LevelHerbivore = (model_data$Trophic.Level == "Herbivore")*1,
-                                           Trophic.LevelOmnivore = (model_data$Trophic.Level == "Omnivore")*1,
-                                           Migratory_abilitymoderate = (model_data$Migratory_ability == "moderate")*1,
-                                           Migratory_abilityhigh = (model_data$Migratory_ability == "high")*1,
-                                           BG_imp = model_data$BG_imp,
-                                           rain_imp = model_data$rain_imp,
-                                           temp_imp = model_data$temp_imp,
-                                           dry_imp = model_data$dry_imp,
-                                           HFP_imp = model_data$HFP_imp,
-                                           Wing.Length = model_data$Wing.Length)
-names(LC_no_lifestyle_sens) <- paste0("LC_no_lifestyle_sens", 1:NROW(model_data))
-
-LC_no_trophic_sens <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                         Primary.LifestyleTerrestrial = (model_data$Primary.Lifestyle == "Terrestrial")*1,
-                                         Primary.LifestyleAerial = (model_data$Primary.Lifestyle == "Aerial")*1,
-                                         Primary.LifestyleGeneralist = (model_data$Primary.Lifestyle == "Generalist")*1,
-                                         Migratory_abilitymoderate = (model_data$Migratory_ability == "moderate")*1,
-                                         Migratory_abilityhigh = (model_data$Migratory_ability == "high")*1,
-                                         BG_imp = model_data$BG_imp,
-                                         rain_imp = model_data$rain_imp,
-                                         temp_imp = model_data$temp_imp,
-                                         dry_imp = model_data$dry_imp,
-                                         HFP_imp = model_data$HFP_imp,
-                                         Wing.Length = model_data$Wing.Length)
-names(LC_no_trophic_sens) <- paste0("LC_no_trophic_sens", 1:NROW(model_data))
-
-LC_no_migratory_sens <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                           Trophic.LevelHerbivore = (model_data$Trophic.Level == "Herbivore")*1,
-                                           Trophic.LevelOmnivore = (model_data$Trophic.Level == "Omnivore")*1,
-                                           Primary.LifestyleTerrestrial = (model_data$Primary.Lifestyle == "Terrestrial")*1,
-                                           Primary.LifestyleAerial = (model_data$Primary.Lifestyle == "Aerial")*1,
-                                           Primary.LifestyleGeneralist = (model_data$Primary.Lifestyle == "Generalist")*1,
-                                           BG_imp = model_data$BG_imp,
-                                           rain_imp = model_data$rain_imp,
-                                           temp_imp = model_data$temp_imp,
-                                           dry_imp = model_data$dry_imp,
-                                           HFP_imp = model_data$HFP_imp,
-                                           Wing.Length = model_data$Wing.Length)
-names(LC_no_migratory_sens) <- paste0("LC_no_migratory_sens", 1:NROW(model_data))
-
-LC_no_BG_imp <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                   Trophic.LevelHerbivore = (model_data$Trophic.Level == "Herbivore")*1,
-                                   Trophic.LevelOmnivore = (model_data$Trophic.Level == "Omnivore")*1,
-                                   Primary.LifestyleTerrestrial = (model_data$Primary.Lifestyle == "Terrestrial")*1,
-                                   Primary.LifestyleAerial = (model_data$Primary.Lifestyle == "Aerial")*1,
-                                   Primary.LifestyleGeneralist = (model_data$Primary.Lifestyle == "Generalist")*1,
-                                   Migratory_abilitymoderate = (model_data$Migratory_ability == "moderate")*1,
-                                   Migratory_abilityhigh = (model_data$Migratory_ability == "high")*1,
-                                   rain_imp = model_data$rain_imp,
-                                   temp_imp = model_data$temp_imp,
-                                   dry_imp = model_data$dry_imp,
-                                   HFP_imp = model_data$HFP_imp,
-                                   Wing.Length = model_data$Wing.Length)
-names(LC_no_BG_imp) <- paste0("LC_no_BG_imp", 1:NROW(model_data))
-
 all_lc_sens <- c(BG_lc, rain_lc, temp_lc, dry_lc, HFP_lc, wing_lc, reflect_lc, 
-                 Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc,
-                 LC_no_lifestyle_sens, LC_no_trophic_sens, LC_no_migratory_sens,
-                 LC_no_BG_imp)
+                 Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc)
 
 
-BG_lc_niche <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+BG_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                   BG_breadth = seq(min(model_data$BG_breadth), max(model_data$BG_breadth), len = 100))
-names(BG_lc_niche) <- paste0("BG_breadth", 1:100)
-rain_lc_niche <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+names(BG_lc_breadth) <- paste0("BG_breadth", 1:100)
+rain_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                     rain_breadth = seq(min(model_data$rain_breadth), max(model_data$rain_breadth), len = 100))
-names(rain_lc_niche) <- paste0("rain_breadth", 1:100)
-temp_lc_niche <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+names(rain_lc_breadth) <- paste0("rain_breadth", 1:100)
+temp_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                     temp_breadth = seq(min(model_data$temp_breadth), max(model_data$temp_breadth), len = 100))
-names(temp_lc_niche) <- paste0("temp_breadth", 1:100)
-dry_lc_niche <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+names(temp_lc_breadth) <- paste0("temp_breadth", 1:100)
+dry_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                    dry_breadth = seq(min(model_data$dry_breadth), max(model_data$dry_breadth), len = 100))
-names(dry_lc_niche) <- paste0("dry_breadth", 1:100)
-HFP_lc_niche <- inla.make.lincombs("(Intercept)" = rep(1, 100),
+names(dry_lc_breadth) <- paste0("dry_breadth", 1:100)
+HFP_lc_breadth <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                                    HFP_breadth = seq(min(model_data$HFP_breadth), max(model_data$HFP_breadth), len = 100))
-names(HFP_lc_niche) <- paste0("HFP_breadth", 1:100)
+names(HFP_lc_breadth) <- paste0("HFP_breadth", 1:100)
 wing_lc <- inla.make.lincombs("(Intercept)" = rep(1, 100),
                               Wing.Length = seq(min(model_data$Wing.Length), max(model_data$Wing.Length), len = 100))
 names(wing_lc) <- paste0("Wing.Length", 1:100)
@@ -206,49 +150,9 @@ Primary.Lifestyle_lc <- inla.make.lincombs("(Intercept)" = rep(1, 4),
                                            Primary.LifestyleGeneralist = c(0, 0, 0, 1))
 names(Primary.Lifestyle_lc) <- paste0("Primary.Lifestyle", 1:4)
 
-LC_no_lifestyle_niche <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                            Trophic.LevelHerbivore = (model_data$Trophic.Level == "Herbivore")*1,
-                                            Trophic.LevelOmnivore = (model_data$Trophic.Level == "Omnivore")*1,
-                                            Migratory_abilitymoderate = (model_data$Migratory_ability == "moderate")*1,
-                                            Migratory_abilityhigh = (model_data$Migratory_ability == "high")*1,
-                                            BG_breadth = model_data$BG_breadth,
-                                            rain_breadth = model_data$rain_breadth,
-                                            temp_breadth = model_data$temp_breadth,
-                                            dry_breadth = model_data$dry_breadth,
-                                            HFP_breadth = model_data$HFP_breadth,
-                                            Wing.Length = model_data$Wing.Length)
-names(LC_no_lifestyle_niche) <- paste0("LC_no_lifestyle_niche", 1:NROW(model_data))
 
-LC_no_trophic_niche <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                          Primary.LifestyleTerrestrial = (model_data$Primary.Lifestyle == "Terrestrial")*1,
-                                          Primary.LifestyleAerial = (model_data$Primary.Lifestyle == "Aerial")*1,
-                                          Primary.LifestyleGeneralist = (model_data$Primary.Lifestyle == "Generalist")*1,
-                                          Migratory_abilitymoderate = (model_data$Migratory_ability == "moderate")*1,
-                                          Migratory_abilityhigh = (model_data$Migratory_ability == "high")*1,
-                                          BG_breadth = model_data$BG_breadth,
-                                          rain_breadth = model_data$rain_breadth,
-                                          temp_breadth = model_data$temp_breadth,
-                                          dry_breadth = model_data$dry_breadth,
-                                          HFP_breadth = model_data$HFP_breadth,
-                                          Wing.Length = model_data$Wing.Length)
-names(LC_no_trophic_niche) <- paste0("LC_no_trophic_niche", 1:NROW(model_data))
+all_lc_breadth <- c(BG_lc_breadth, rain_lc_breadth, temp_lc_breadth, dry_lc_breadth, HFP_lc_breadth, wing_lc, reflect_lc, 
+                  Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc)
 
-LC_no_migratory_niche <- inla.make.lincombs("(Intercept)" = rep(1, NROW(model_data)),
-                                            Trophic.LevelHerbivore = (model_data$Trophic.Level == "Herbivore")*1,
-                                            Trophic.LevelOmnivore = (model_data$Trophic.Level == "Omnivore")*1,
-                                            Primary.LifestyleTerrestrial = (model_data$Primary.Lifestyle == "Terrestrial")*1,
-                                            Primary.LifestyleAerial = (model_data$Primary.Lifestyle == "Aerial")*1,
-                                            Primary.LifestyleGeneralist = (model_data$Primary.Lifestyle == "Generalist")*1,
-                                            BG_breadth = model_data$BG_breadth,
-                                            rain_breadth = model_data$rain_breadth,
-                                            temp_breadth = model_data$temp_breadth,
-                                            dry_breadth = model_data$dry_breadth,
-                                            HFP_breadth = model_data$HFP_breadth,
-                                            Wing.Length = model_data$Wing.Length)
-names(LC_no_migratory_niche) <- paste0("LC_no_migratory_niche", 1:NROW(model_data))
+save(model_data, all_species, all_lc_sens, all_lc_breadth, file = 'model_data/regression_data.RData')
 
-all_lc_niche <- c(BG_lc_niche, rain_lc_niche, temp_lc_niche, dry_lc_niche, HFP_lc_niche, wing_lc, reflect_lc, 
-                  Trophic_level_lc, Migratory_ability_lc, Primary.Lifestyle_lc,
-                  LC_no_lifestyle_niche, LC_no_trophic_niche, LC_no_migratory_niche)
-
-save(model_data, all_lc_sens, all_lc_niche, file = 'model_data/regression_data.RData')

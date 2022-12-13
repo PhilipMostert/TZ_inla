@@ -83,6 +83,8 @@ proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # setwd('/Users/philism/OneDrive - NTNU/PhD/Joris_work/Temporal_variables')
 
 # Import and process covariate data
+# Note: "projectRaster" changes the resolution, using bilinear interpolation to match resolution of raster
+# that is projected to 
 TZ_annual_median_rain_80_00 <- raster('TZbuff_annual_median_rain_1981_1999.tif') %>% mask(., ROI)
 TZ_annual_median_rain_80_00[is.nan(TZ_annual_median_rain_80_00)] <- NA
 TZ_annual_median_rain_00_20 <- raster('TZbuff_annual_median_rain_2000_2020.tif') %>% mask(., ROI) %>% projectRaster(., TZ_annual_median_rain_80_00)

@@ -171,10 +171,6 @@ prepare_GAM <- function(df, vector){
       return(df)
 }
 
-unscale <- function(x, scale.params = sc.p) {
-      return((x * scale.params$'scaled:scale') + scale.params$'scaled:center')
-}
-
 cloglog_inv <- function(x){
       1-exp(-exp(x))
 }
@@ -327,7 +323,7 @@ make_forest_plot <- function(inla_model, label, col){
             # geom_text(data = model_fixed %>% filter(significant == "yes"), aes(x = ID, y = X0.975quant), label = "*", nudge_x = 0.1, nudge_y = 0.01) +
             ylab("Posterior estimates") +
             xlab(element_blank()) +
-            theme_minimal() +
+            theme_minimal(base_size = 16) +
             scale_x_discrete(limits=rev) +
             scale_colour_manual(values = c("black", "#D55E00"), guide = "none") +
             theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -336,15 +332,59 @@ make_forest_plot <- function(inla_model, label, col){
 
 rsq <- function(x, y) summary(lm(y~x))$r.squared
 
-make_raw_data_plots <- function(inla_model, data, xlabel){
-      covariates <- strsplit(as.character(inla_model$.args$formula[3]), split = " \\+ ")[[1]]
-      response <- as.character(inla_model$.args$formula[2])
-      plot_list <- vector('list', length(covariates))
+get_model_p_r2 <- function(model){
+      var_list <- unique(gsub('[[:digit:]]+', '', rownames(model$summary.lincomb.derived))) %>% 
+            str_subset(pattern = "^LC_no")
+      model_pred <- model$summary.fitted.values[, "0.5quant"]
+      pseudo_r2_list <- list()
+      for(i in 1:length(var_list)){
+            var = var_list[i]
+            var_index <- grep(var, rownames(model$summary.lincomb.derived))
+            no_var_pred <- model$summary.lincomb.derived[var_index, "0.5quant"]
+            pseudo_r2 <- 1-rsq(model_pred, no_var_pred)
+            pseudo_r2_list[[var_list[i]]] <- pseudo_r2
+      }
+      return(pseudo_r2_list)
+}
+
+get_slope_unscaled <- function(model, data, covar){
+      model_fixed <- data.frame(model$summary.fixed) %>% 
+            mutate(ID = rownames(.))
+      slope <- (exp(model_fixed$mean[model_fixed$ID == covar]) - 1) * 100
+      if(covar == "Wing.Length") {
+            unit_step <- round(exp(unscale_fun(value = 1, model_data[, covar])), digits = 2)
+      } else {
+            unit_step <- round(unscale_fun(value = 1, model_data[, covar]), digits = 2)
+      }
       
+      new_unit_step = 10^floor(log10(abs(unit_step))) 
+      new_slope = (slope*new_unit_step)/unit_step
+      new_slope <- paste0(round(((slope*new_unit_step)/unit_step), digits = 1), "%")
+      
+      print(paste0("\u394X: ", new_unit_step, ", \u394Y: ", new_slope))
+}
+
+make_raw_data_plots <- function(inla_model, data, covariate = NULL, newscale = NULL){
       lincomb_data <- data.frame(inla_model$summary.lincomb.derived) %>% 
             mutate(ID = rownames(.)) %>% 
             dplyr::select(-mode, -kld, -mean, -sd)
+      xlab_df <- data.frame(var_name = c('BG_imp', 'rain_imp', 'temp_imp', 'dry_imp', 'HFP_imp', 
+                                         'rain_breadth', 'temp_breadth', 'dry_breadth', 'HFP_breadth', 'BG_breadth',
+                                         'Wing.Length', 'avg.r',
+                                         'Trophic.Level', 'Primary.Lifestyle', 'Migratory_ability'), 
+                            label_name = c('Bare ground sensitivity', 'Annual rainfall sensitivity', 'Hottest temperature sensitivity', 'Dryspell duration sensitivity', 'Human footprint sensitivity', 
+                                           'Annual rainfall niche breadth', 'Hottest temperature niche breadth', 'Dryspell duration niche breadth', 'Human footprint niche breadth', 'Bare ground niche breadth',
+                                           'Wing length [mm]', 'Average dorsal reflectance',
+                                           'Trophic level', 'Primary lifestyle', 'Migratory ability'))
+      ylab_df <- data.frame(var_name = c('relative_colonisation', 'relative_extinction', 'log_prop_change'), 
+                            label_name = c('Meaningful colonisation', 'Meaningful extinction', 'Proportional change'))
+      response <- as.character(inla_model$.args$formula[2])
       
+      if(is.null(covariate)){
+      covariates <- strsplit(as.character(inla_model$.args$formula[3]), split = " \\+ ")[[1]]
+      plot_list <- vector('list', length(covariates))
+      
+
       for (i in 1:length(covariates)){
             if(is.numeric(data[, covariates[i]])){
                   plot_list[[i]] <- local({
@@ -359,10 +399,18 @@ make_raw_data_plots <- function(inla_model, data, xlabel){
                                               ymin = X0.025quant, 
                                               ymax = X0.975quant), 
                                           alpha = 0.1) +
-                              theme_classic() +
-                              xlab(covariates[i]) +
-                              ylab(xlabel) + 
-                              geom_rug(data = data, aes(x = get(covariates[i]), y = get(response)), col=rgb(.5,0,0, alpha=.4))
+                              theme_linedraw() +
+                              xlab(xlab_df$label_name[xlab_df$var_name == covariates[i]]) +
+                              ylab(ylab_df$label_name[ylab_df$var_name == response]) + 
+                              geom_rug(data = data, aes(x = get(covariates[i]), y = get(response)), col=rgb(.5,0,0, alpha=.4)) +
+                              ggtitle(get_slope_unscaled(inla_model, data, covariates[i]))
+                        if(is.null(newscale)){
+                              p1 <- p1 
+                        } else {
+                              p1 <- p1 +
+                                    newscale
+                        }
+                              
                         print(p1)})
             } else {
                   plot_list[[i]] <- local({
@@ -371,12 +419,72 @@ make_raw_data_plots <- function(inla_model, data, xlabel){
                               geom_boxplot(aes(get(covariates[i]), get(response))) +
                               geom_point(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ], 
                                          aes(x = levels(data[, covariates[i]]), y = X0.5quant), col = "red", cex = 2) +
-                              theme_classic() +
-                              xlab(covariates[i]) +
-                              ylab(xlabel)
+                              theme_linedraw() +
+                              xlab(xlab_df$label_name[xlab_df$var_name == covariates[i]]) +
+                              ylab(ylab_df$label_name[ylab_df$var_name == response])
+                        if(is.null(newscale)){
+                              p2 <- p2 
+                        } else {
+                              p2 <- p2 +
+                                    newscale
+                        }
                         print(p2)})
             }
       }
       
       return(plot_list)
+      } else {
+            if(is.numeric(data[, covariate])){
+                        plot_out <- ggplot() +
+                                    geom_point(data = data, aes(x = get(covariate), y = get(response))) +
+                                    geom_line(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
+                                              aes(x = seq(min(data[, covariate], na.rm = T), max(data[, covariate], na.rm = T), len = 100),
+                                                  y = X0.5quant), lty = 2, alpha = 0.5, col = "red") +
+                                    geom_ribbon(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
+                                                aes(x = seq(min(data[, covariate], na.rm = T), max(data[, covariate], na.rm = T), len = 100), 
+                                                    ymin = X0.025quant, 
+                                                    ymax = X0.975quant), 
+                                                alpha = 0.1) +
+                                    theme_linedraw() +
+                                    xlab(xlab_df$label_name[xlab_df$var_name == covariate]) +
+                                    ylab(ylab_df$label_name[ylab_df$var_name == response]) + 
+                                    geom_rug(data = data, aes(x = get(covariate), y = get(response)), col=rgb(.5,0,0, alpha=.4)) +
+                                    ggtitle(get_slope_unscaled(inla_model, data, covariate))
+                              if(is.null(newscale)){
+                                    plot_out <- plot_out 
+                              } else {
+                                    plot_out <- plot_out +
+                                          newscale
+                              }
+                              
+                              print(plot_out)
+                  } else {
+                        plot_out <- ggplot(data) +
+                                    geom_boxplot(aes(get(covariate), get(response))) +
+                                    geom_point(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ], 
+                                               aes(x = levels(data[, covariate]), y = X0.5quant), col = "red", cex = 2) +
+                                    theme_linedraw() +
+                                    xlab(xlab_df$label_name[xlab_df$var_name == covariate]) +
+                                    ylab(ylab_df$label_name[ylab_df$var_name == response])
+                              if(is.null(newscale)){
+                                    plot_out <- plot_out 
+                              } else {
+                                    plot_out <- plot_out +
+                                          newscale
+                              }
+                              print(plot_out)
+                  }
+            return(plot_out)
+      }
 }
+
+unscale_fun <- function(attr_column, value = NULL){
+      if(is.null(value)){
+            unscaled <- attr_column * attr(attr_column, 'scaled:scale') + attr(attr_column, 'scaled:center')
+      } else {
+            unscaled <- value * attr(attr_column, 'scaled:scale') + attr(attr_column, 'scaled:center')
+      }
+      return(unscaled)
+}
+
+
