@@ -12,7 +12,7 @@ traits <- readxl::read_xlsx('model_data/ELEData/TraitData/AVONET2_eBird.xlsx', s
 colours <-  read.csv('model_data/plumage_lightness.csv') %>%
       mutate(species = gsub(pattern = "_", replacement = " ", species)) %>% 
       filter(sex == "F")
-# Higher reflectance = lighter colors = like hotter areas, lesser heat load 
+# Higher reflectance = lighter colors = like hotter areas, lower heat load 
 # Darker birds are limited from occupying areas with high temperatures
 
 species_results$species[species_results$species == "Estrilda erythronotos"] <- "Brunhilda erythronotos"
