@@ -23,7 +23,6 @@ add_quantiles <- function(df, column, new_var){
 }
 
 for (j in 1:length(modelData_list)) {
-      #for (j in 42) {
       load(modelData_list[j])
       print(paste0("Starting file: ", modelData_list[j]))
       species_results[j, 'species'] <- species
