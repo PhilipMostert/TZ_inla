@@ -14,3 +14,6 @@ TZ_inla_spatial_temporal.Rproj
 Scripts/results_figures_old.R
 presentation_files/
 old_files/
+spatial_data/
+results/
+observation_data/
