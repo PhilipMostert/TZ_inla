@@ -1,3 +1,29 @@
+sortBase <- function(vec, n.knots = 2) {
+   ## Function to calculate bases for regression splines. Modified from code
+   ## provided in Crainiceanu, C., Ruppert, D. & Wand, M.P. Bayesian analysis for
+   ## penalized spline regression using WinBUGS. J. Stat. Soft. 14, 1 24(2005).
+   ## Parameter vec is a vector defining the raw data vector, n.knots defines the
+   ## number of knots in the GAM.
+   ## Creates transformation of covariates with weights, full length vectors
+   # Define sample size
+   N         <- length(vec)   
+   x.time    <- c(vec)  
+   # Define the X matrix of fixed effects for the thin-plate spline
+   zFE       <- cbind(rep(1,N), x.time)   
+   # Define knot values as the sample quantiles of the covariate, based on the number of knots.
+   # With two knots, defines knot values as covariate values at the 33.3% and 66.6% quantile.
+   x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1, (n.knots+2))], na.rm = TRUE)
+   
+   z_K       <- (abs(outer(x.time,x.knots,"-")))^3
+   OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
+   svd.OMEGA.all  <- svd(OMEGA.all)
+   sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
+                                               sqrt(svd.OMEGA.all$d)))
+   z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
+   return(z.out)
+}
+
+
 make_ebird_sp <- function(scientific_name, ROI){
    require(spatialEco)
       df <- ebird_filtered %>% 
@@ -115,83 +141,6 @@ plot_INLA_fit <- function(model_out){
    # p3 <- plot_grid(p1, p2, ncol = 2)
    return(p1)
 }
-# sortBase <- function(vec, n.knots = 2) {
-#       ## Function to calculate bases for regression splines. Modified from code
-#       ## provided in Crainiceanu, C., Ruppert, D. & Wand, M.P. Bayesian analysis for
-#       ## penalized spline regression using WinBUGS. J. Stat. Soft. 14, 1 24(2005).
-#       ## Parameter vec is a vector defining the raw data vector, n.knots defines the
-#       ## number of knots in the GAM.
-#       ## Creates transformation of covariates with weights, full length vectors
-#       # Define sample size
-#       N         <- length(vec)
-#       x.time    <- c(vec)
-#       # Define the X matrix of fixed effects for the thin-plate spline
-#       zFE       <- cbind(rep(1,N), x.time)
-#       # Define knot values as the sample quantiles of the covariate, based on the number of knots.
-#       # With two knots, defines knot values as covariate values at the 33.3% and 66.6% quantile.
-#       x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1, (n.knots+2))], na.rm = TRUE)
-# 
-#       z_K       <- (abs(outer(x.time,x.knots,"-")))^3
-#       OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
-#       svd.OMEGA.all  <- svd(OMEGA.all)
-#       sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
-#                                                      sqrt(svd.OMEGA.all$d)))
-#       z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
-#       return(z.out)
-# }
-sortBase <- function(vec, nsplines = 2, method, user_cp_quantiles = NULL, vecname, display_plot) {
-      #' Thin-plate spline basis function, modified from code
-      #' provided in Crainiceanu, C., Ruppert, D. & Wand, M.P. Bayesian analysis for
-      #' penalized spline regression using WinBUGS. J. Stat. Soft. 14, 1?24(2005).
-      #'
-      #' This function computes a thin-plate spline basis for a given numeric vector
-      #' using a specified number of basis functions (nsplines).
-      #' The basis functions are centered at control points determined by either the quantiles
-      #' or kmeans clusters of the unique values in the input vector.
-      #'
-      #' @param vec A numeric vector for which the thin-plate spline basis is computed
-      #' @param nsplines Integer specifying the number of basis functions (default: 2)
-      #' @param methods Character string specifying the control point placement method
-      #' @param user_cp_quantiles Optional numeric vector specifying user-defined quantiles for placing control points
-      #' @return A matrix with the same number of rows as the input vector and nsplines columns,
-      #'         representing the thin-plate spline basis for the input vector.
-
-      if (!is.null(user_cp_quantiles)){
-            control_points <- quantile(unique(vec), probs = user_cp_quantiles, na.rm = TRUE)
-            plot_title <- paste0(vecname, ", Cp quantiles provided by user")
-      } else {
-            if (method == "quantile"){
-                  control_points <- quantile(unique(vec), seq(0, 1, length = (nsplines+2))[-c(1, (nsplines+2))], na.rm = TRUE)
-                  label = "quantiles"
-            } else if (method == "kmeans"){
-                  clusters <- kmeans(unique(na.omit(vec)), centers = nsplines)
-                  control_points <- sort(clusters$centers)
-                  label = "kmeans"
-            } else if (method == "gmm"){
-                  require(mixtools)
-                  fit <- normalmixEM(unique(na.omit(vec)), k = nsplines)
-                  control_points <- fit$mu
-                  label = "Gaussian mixture model"
-            }
-            plot_title <- paste0(vecname, ", Cp based on ", label)
-      }
-      
-      if(display_plot == TRUE){
-            plot(density(na.omit(vec)), main = plot_title)
-            abline(v = control_points, col = "red")
-      }
-
-      # Define the thin-plate spline penalty matrix
-      zFE       <- cbind(rep(1, length(vec) ), vec)
-
-      z_K <- (abs(outer(vec, control_points, "-"))) ^ 3
-      OMEGA.all <- (abs(outer(control_points, control_points, "-"))) ^ 3
-      svd.OMEGA.all  <- svd(OMEGA.all)
-      sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
-                                                     sqrt(svd.OMEGA.all$d)))
-      z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
-      return(z.out)
-}
 
 prepare_GAM <- function(df, vector){
       # Create prediction vector, as sequence of 100 values, spanning full range of values. 
@@ -219,40 +168,6 @@ prepare_GAM <- function(df, vector){
       
       df@data[, paste0(deparse(substitute(vector)), "_2000s_1.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 1])
       df@data[, paste0(deparse(substitute(vector)), "_2000s_2.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 2])
-      return(df)
-}
-
-prepareSplineData <- function(df, vector, nsplines = 2, method = "quantile", user_cp_quantiles = NULL, display_plot = TRUE){
-      #' Prepare spline data for a given vector in a data frame
-      #'
-      #' This function computes the spline basis for a given vector in a data frame using
-      #' either natural splines or the custom sortBase method. The resulting spline basis
-      #' is added to the data frame and prediction vectors are assigned to the global environment.
-      #'
-      #' @param df A data frame containing the input vector
-      #' @param vector The vector within the data frame for which the spline basis is computed
-      #' @param nsplines Integer specifying the number of basis functions (default: 2)
-      #' @param methods Character string specifying the control point placement method (default: "quantile")
-      #' @param user_cp_quantiles Optional numeric vector specifying user-defined quantiles for placing control points
-      #' @return A modified data frame with added columns for each of the computed spline basis functions
-      
-      # Create prediction vector, as sequence of 100 values, spanning full range of values. 
-      sequence <- seq(min(vector, na.rm = T), max(vector, na.rm = T), length = 100)
-      # Save this vector, we use it later to label the x axis in the model effect plots
-      assign(paste0(deparse(substitute(vector)), ".seq"), sequence, envir = .GlobalEnv)
-      
-      # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
-      var.s <- c(scale(c(sequence, vector)))  
-      
-      n_data <- NROW(vector)/2
-      vec_name <- sub("^.*\\$", "", deparse(substitute(vector)))
-      
-      z.var.s <- scale(sortBase(vec = var.s, nsplines = nsplines, method, user_cp_quantiles, vecname = vec_name, display_plot = display_plot))
-      for (i in 1:nsplines) {
-            assign(paste0(deparse(substitute(vector)), "_", i, ".s"), c(z.var.s[1:100, i]), envir = .GlobalEnv)
-            df[, paste0(deparse(substitute(vector)), "_1980s_", i, ".s")] <- c(z.var.s[101:(100+n_data), i])
-            df[, paste0(deparse(substitute(vector)), "_2000s_", i, ".s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), i])
-      }
       return(df)
 }
 
@@ -389,7 +304,7 @@ make_forest_plot <- function(inla_model, label, col){
                          ID = replace(ID, ID == "Mass", "Body mass"),
                          ID = replace(ID, ID == "avg.r", "Dorsal reflectance"))
       }
-      
+            
       model_fixed$ID <- factor(model_fixed$ID, levels = c("Trophic level: Omnivore", "Trophic level: Herbivore", 
                                                           "Primary lifestyle: Generalist", "Primary lifestyle: Aerial", "Primary lifestyle: Terrestrial",
                                                           "Migratory ability: High", "Migratory ability: Moderate", "Hand-wing Index", "Body mass", "Dorsal reflectance",

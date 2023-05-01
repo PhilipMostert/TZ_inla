@@ -17,11 +17,11 @@
 GetNearestCovariate <- function(points, covs) {
   
   #if covariate and point objects are not spatial objects, convert them into spatial obkjects
-  if(class(covs)!="SpatialPointsDataFrame") {
+  if(!"SpatialPointsDataFrame" %in% class(covs)) {
     covs <- SpatialPointsDataFrame(coords = covs[,1:2], data = covs[,-(1:2)])
   }
   
-  if(class(points)!="SpatialPointsDataFrame") {
+  if(!"SpatialPointsDataFrame" %in% class(points)) {
     points <- SpatialPoints(points)
   }
 
