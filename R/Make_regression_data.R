@@ -60,8 +60,6 @@ all_species <- df_merged %>%
              log_prop_change = log(sum_dist_20s/sum_dist_80s),
              prop_change = sum_dist_20s/sum_dist_80s,
              auc_mean = (auc_80s + auc_20s)/2) %>% 
-      # filter(Trophic.Level != "Scavenger",
-             # species != "Neophron percnopterus") %>% 
       mutate(Migratory_ability = factor(Migratory_ability, levels = c("low", "moderate", "high")),
              Primary.Lifestyle = factor(Primary.Lifestyle, levels = c("Insessorial", "Terrestrial", "Aerial", "Generalist")),
              Trophic.Level = factor(Trophic.Level, levels = c("Carnivore", "Herbivore", "Omnivore"))) %>% 
@@ -77,6 +75,7 @@ model_data <-  all_species %>%
       filter(species != "Gyps africanus",        # only scavenger
              species != "Struthio camelus")  %>%     # Mass outlier
       drop_na()
+
 # -----------------------------------------------------------------------------------------------------------------
 # Linear combinations for INLA model
 # -----------------------------------------------------------------------------------------------------------------

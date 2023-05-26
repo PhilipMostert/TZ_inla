@@ -13,7 +13,9 @@ library(ztable)
 library(magrittr)
 library(viridis)
 
-## Data import -----------
+# -----------------------------------------------------------------------------------------------------------------
+# Data import -----------
+# -----------------------------------------------------------------------------------------------------------------
 source("source/misc_functions.R")
 load('model_data/regression_data.RData')
 load("results/traits_model_list.RData")
@@ -29,7 +31,9 @@ for (i in 1:length(col_list)){
 
 relative_scale <- scale_y_continuous(breaks = log(c(seq(0.5, 3, by = 0.5), 4, 5, 10, 20, 30, 40)), labels = c(seq(0.5, 3, by = 0.5), 4, 5, 10, 20, 30, 40))
 
+# -----------------------------------------------------------------------------------------------------------------
 ## Overview of range changes -----------
+# -----------------------------------------------------------------------------------------------------------------
 cells_change_log <- ggplot(model_data, aes(x = reorder(species, log_prop_change))) +
       geom_bar(aes(y = log_prop_change, col = "Total range change"), stat = 'identity', alpha = 0.3) +
       geom_point(aes(y = log_relative_colonisation, col = "Colonisation"), pch = '-', size = 7) +
@@ -136,53 +140,38 @@ combined_range_plots <- (cells_change_log / cor_plot) | median_plot_kori | media
 ggsave(filename = "figures/final_figures/combined_range_plots_R.png", plot = combined_range_plots, width = 38, height = 20,
        units = "cm", dpi = 300)
 
-# combined_range_plots_2 <- (cells_change_log | cor_plot)
-# png("figures/final_figures/combined_range_plots.png",
-#     bg = "transparent", res = 300, width = 20, height = 10, units = "cm")
-# combined_range_plots_2
-# dev.off()
 
+# -----------------------------------------------------------------------------------------------------------------
 ## Model output - forest plot ---------
+# -----------------------------------------------------------------------------------------------------------------
 prop_change_forest <- make_forest_plot(model_prop_change, "Sensitivity", "#0072B2") + 
       ggtitle("Total range change")
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_prop_change$summary.fitted.values[, "0.5quant"], model_data$log_prop_change), digits = 2))))
 
 loss_forest <- make_forest_plot(model_loss_log, "Sensitivity", "#0072B2") + 
       ggtitle("Extinction") +
       theme(axis.title.y=element_blank(),
             axis.text.y=element_blank())
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_loss_log$summary.fitted.values[, "0.5quant"], model_data$relative_extinction), digits = 2))))
 
-col_forest <- make_forest_plot(model_col_log, "Sensitivity", "#0072B2")  + 
+make_forest_plot(model_col_log, "Sensitivity", "#0072B2")  + 
       ggtitle("Colonisation") +
       theme(axis.title.y=element_blank(),
             axis.text.y=element_blank()) 
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_col_log$summary.fitted.values[, "0.5quant"], model_data$relative_colonisation), digits = 2))))
 
 prop_change_forest_niche <- make_forest_plot(model_prop_change_breadth, "Niche breadth", "#E69F00") + 
       ggtitle("Total range change") +
       xlab(element_blank()) 
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_prop_change_breadth$summary.fitted.values[, "0.5quant"], model_data$log_prop_change), digits = 2))))
 
 loss_forest_niche <- make_forest_plot(model_loss_log_breadth, "Niche breadth", "#E69F00") + 
       ggtitle("Extinction") +
       xlab(element_blank()) +
       theme(axis.title.y=element_blank(),
             axis.text.y=element_blank())
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_loss_log_breadth$summary.fitted.values[, "0.5quant"], model_data$relative_extinction), digits = 2))))
 
 col_forest_niche <- make_forest_plot(model_col_log_breadth, "Niche breadth", "#E69F00") + 
       ggtitle("Colonisation") +
       xlab(element_blank()) +
       theme(axis.title.y=element_blank(),
             axis.text.y=element_blank())
-# geom_text(aes(x = Inf, y = -Inf, hjust = 1, vjust = -0.8, 
-#               label = paste0('R²= ', round(rsq(model_col_log_breadth$summary.fitted.values[, "0.5quant"], model_data$relative_colonisation), digits = 2))))
 
 forest_patch <- prop_change_forest_niche + loss_forest_niche + col_forest_niche + 
       prop_change_forest + loss_forest + col_forest 
@@ -191,8 +180,9 @@ forest_annotated <- forest_patch + plot_annotation(tag_levels = 'A')
 ggsave(filename = "figures/final_figures/forest_plots_comb.png", plot = forest_annotated, width = 22, height = 20,
        units = "cm", dpi = 400)
 
+# -----------------------------------------------------------------------------------------------------------------
 ## Selected plots showing raw data with model results ---------
-# Need body mass ext, dorsal reflect col, migration col, sens dry col
+# -----------------------------------------------------------------------------------------------------------------
 rain_breadth_ext <- make_raw_data_plots(model_loss_log_breadth, figure_data, "rain_breadth", newscale.y = relative_scale, custom_unit_step = 100)
 mass_sens_ext <- make_raw_data_plots(model_loss_log, figure_data, "Mass", newscale.y = relative_scale, custom_unit_step = 10)
 dry_sens_col <-  make_raw_data_plots(model_col_log, figure_data, "dry_imp", newscale.y = relative_scale)
@@ -203,7 +193,9 @@ raw_data_plots <- (rain_breadth_ext[[1]] + ylab("Meaningful extinction") | mass_
 ggsave(filename = "figures/final_figures/raw_data_plots.png", plot = raw_data_plots, width = 25, height = 15,
        units = "cm", dpi = 400)
 
+# -----------------------------------------------------------------------------------------------------------------
 ## Supplementary table of species data ------------
+# -----------------------------------------------------------------------------------------------------------------
 species_table <- figure_data %>% 
       dplyr::select(species, log_prop_change, relative_extinction, relative_colonisation, everything()) %>% 
       mutate(Mass = exp(Mass)) %>% 
@@ -214,7 +206,9 @@ options(ztable.type="viewer")
 z = ztable(species_table) %>% makeHeatmap(margin = 2)
 z
 
+# -----------------------------------------------------------------------------------------------------------------
 ## Supplementary figures: All raw data plots --------------
+# -----------------------------------------------------------------------------------------------------------------
 list_change_sens <- make_raw_data_plots(model_prop_change, figure_data, newscale.y = relative_scale)
 plot_change_sens <- wrap_plots(list_change_sens, ncol = 3) + plot_annotation(tag_levels = 'A', title = "Total range change - Sensitivity") 
 png(filename = "figures/final_figures/plot_change_sens.png", width = 30, height = 24,

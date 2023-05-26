@@ -1,144 +1,3 @@
-make_ebird_sp <- function(scientific_name, ROI){
-   require(spatialEco)
-      df <- ebird_filtered %>% 
-            group_by(LATITUDE, LONGITUDE, `SAMPLING EVENT IDENTIFIER`, `DURATION MINUTES`, 
-                     `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
-            summarise(occurrence = ifelse(scientific_name %in% `SCIENTIFIC NAME`, TRUE, FALSE)) %>% 
-            ungroup() %>% 
-            group_by(LATITUDE, LONGITUDE, `DURATION MINUTES`, 
-                     `EFFORT DISTANCE KM`, `NUMBER OBSERVERS`, `OBSERVATION DATE`, `LOCALITY`) %>% 
-            slice_head() %>%    # Where duplicate checklists occurred, keep only the first
-            ungroup() %>% 
-            rename(duration_minutes = `DURATION MINUTES`,
-                   effort_distance_km = `EFFORT DISTANCE KM`,
-                   number_observers = `NUMBER OBSERVERS`)
-      
-      df_sp <- SpatialPointsDataFrame(
-            coords = df[, c("LONGITUDE", "LATITUDE")],
-            data = data.frame(presence = df$occurrence, duration_minutes = df$duration_minutes,
-                              effort_distance_km = df$effort_distance_km, number_observers = df$number_observers),
-            proj4string = crs(proj)
-      )
-      
-      # Only include eBird data points for the region of interest
-      # Get intersecting points
-      in_sp <- rgeos::gIntersection(df_sp, ROI)
-      
-      # Only keep intersecting points in original spdf
-      df_sp_ROI <- df_sp[in_sp, ]
-      cat('\nNumber of eBird presence records: ', length(rownames(df_sp_ROI@data[df_sp_ROI@data$presence == TRUE, ])), '\n')
-      
-      
-      return(df_sp_ROI)
-}
-
-get_hyperpars <- function(path){
-   out = NULL
-   list <- list.files(path = path)
-   
-   for(i in 1:NROW(list)){
-      file = list[i]
-      
-      load(paste0(path, file))
-      
-      # Check hyperparameters. sd ideally should be somewhat smaller than mean. Stdev should not be very small
-      outdf <- as.data.frame(model[["model"]][["summary.hyperpar"]])
-      outdf$par <- c("Range", "Stdev")
-      outdf <- cbind(outdf, rbind(data, data))
-      out <-  rbind(out, outdf)
-   }
-   return(out)
-}
-
-plot_INLA_predictions <- function(model_out){
-   load(model_out)
-   cloglog_inv <- function(x){
-      1-exp(-exp(x))
-   }
-   
-   proj <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
-   
-   Pred <- SpatialPixelsDataFrame( 
-      points = stk.pred$predcoords,
-      data = model$predictions,
-      proj4string = crs(proj)
-   )
-   
-   Pred@data$inv_mean <- cloglog_inv(Pred@data$mean)
-   # test <- raster(Pred)
-   # writeRaster(test, "TZ_fsl_predictions.tif")
-   # Plot of predictions
-   plot_title <- str_split(model_out, pattern = "/")[[1]][length(str_split(model_out, pattern = "/")[[1]])]
-
-   p1 <- ggplot() +
-      gg(Pred, aes(fill = inv_mean)) +
-      coord_equal() +
-      theme_void() +
-      ggtitle(plot_title) + 
-      labs(fill = "Probability") 
-   return(p1)
-}
-
-
-
-plot_INLA_random <- function(model_out, ROI){
-   load(model_out)
-   # Visualize the random field, the unexplained spatial error
-   projector <- inla.mesh.projector(Mesh$mesh)
-   projection <- inla.mesh.project(projector,
-                                   model[["model"]][["summary.random"]]$i$mean)
-   plot_title <- str_split(model_out, pattern = "/")[[1]][length(str_split(model_out, pattern = "/")[[1]])]
-   p1 <- INLAutils::ggplot_projection_shapefile(projection, projector) +
-      geom_polygon(data = ROI, aes(long, lat, group = group), fill = NA, col = 'black') +
-      coord_equal() +
-      ggtitle(plot_title)
-   
-   return(p1)
-}
-
-plot_INLA_fit <- function(model_out){
-   require(cowplot)
-   require(gridGraphics)
-   load(model_out)
-   
-   failure <- sum(model$model$cpo$failure) 
-   print(paste0("Number of CPO failures: ", failure))
-   data <- data.frame(pit = model$model$cpo$pit)
-   p1 <- ggplot(data) +
-      geom_histogram(aes(x = pit))
-   # hist(model$model$cpo$pit, main="", breaks = 10, xlab = "PIT")
-   # p1 <- recordPlot()  
-   # 
-   # plot.ecdf(model$model$cpo$pit); abline(0, 1)
-   # p2 <- recordPlot()  
-   # 
-   # p3 <- plot_grid(p1, p2, ncol = 2)
-   return(p1)
-}
-# sortBase <- function(vec, n.knots = 2) {
-#       ## Function to calculate bases for regression splines. Modified from code
-#       ## provided in Crainiceanu, C., Ruppert, D. & Wand, M.P. Bayesian analysis for
-#       ## penalized spline regression using WinBUGS. J. Stat. Soft. 14, 1 24(2005).
-#       ## Parameter vec is a vector defining the raw data vector, n.knots defines the
-#       ## number of knots in the GAM.
-#       ## Creates transformation of covariates with weights, full length vectors
-#       # Define sample size
-#       N         <- length(vec)
-#       x.time    <- c(vec)
-#       # Define the X matrix of fixed effects for the thin-plate spline
-#       zFE       <- cbind(rep(1,N), x.time)
-#       # Define knot values as the sample quantiles of the covariate, based on the number of knots.
-#       # With two knots, defines knot values as covariate values at the 33.3% and 66.6% quantile.
-#       x.knots   <- quantile(unique(x.time), seq(0, 1, length = (n.knots+2))[-c(1, (n.knots+2))], na.rm = TRUE)
-# 
-#       z_K       <- (abs(outer(x.time,x.knots,"-")))^3
-#       OMEGA.all <- (abs(outer(x.knots,x.knots,"-")))^3
-#       svd.OMEGA.all  <- svd(OMEGA.all)
-#       sqrt.OMEGA.all <- t(svd.OMEGA.all$v %*% (t(svd.OMEGA.all$u) *
-#                                                      sqrt(svd.OMEGA.all$d)))
-#       z.out     <- t(solve(sqrt.OMEGA.all, t(z_K)))
-#       return(z.out)
-# }
 sortBase <- function(vec, nsplines = 2, method, user_cp_quantiles = NULL, vecname, display_plot) {
       #' Thin-plate spline basis function, modified from code
       #' provided in Crainiceanu, C., Ruppert, D. & Wand, M.P. Bayesian analysis for
@@ -193,35 +52,6 @@ sortBase <- function(vec, nsplines = 2, method, user_cp_quantiles = NULL, vecnam
       return(z.out)
 }
 
-prepare_GAM <- function(df, vector){
-      # Create prediction vector, as sequence of 100 values, spanning full range of values. 
-      sequence <- seq(min(vector, na.rm = TRUE), max(vector, na.rm = TRUE), length = 100)
-      # Save this vector, we use it later to label the x axis in the model effect plots
-      assign(paste0(deparse(substitute(vector)), ".seq"), sequence, envir = .GlobalEnv)
-      
-      # Add prediction vector to beginning of original values, scale all to mean 0 and sd 1
-      var.s <- c(scale(c(sequence, vector)))  
-      # Split the full vector into two spline bases, and scale the new vectors to mean 0 and sd 1.
-      # Scale again, covariates should be scaled for the INLA model
-      z.var.s <- scale(sortBase(var.s, n.knots = 2))  
-      
-      # Separate out prediction vectors for the two spline bases, and assign to environment as
-      # separate objects. These will be used for linear combinations
-      assign(paste0(deparse(substitute(vector)), "_1.s"), c(z.var.s[1:100, 1]), envir = .GlobalEnv)
-      assign(paste0(deparse(substitute(vector)), "_2.s"), c(z.var.s[1:100, 2]), envir = .GlobalEnv)
-      
-      # Need to separate out the two time periods, and add to the main data, for the model.
-      # Get the length of each time period vector
-      n_data <- NROW(vector)/2
-      
-      df@data[, paste0(deparse(substitute(vector)), "_1980s_1.s")] <- c(z.var.s[101:(100+n_data), 1])
-      df@data[, paste0(deparse(substitute(vector)), "_1980s_2.s")] <- c(z.var.s[101:(100+n_data), 2])
-      
-      df@data[, paste0(deparse(substitute(vector)), "_2000s_1.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 1])
-      df@data[, paste0(deparse(substitute(vector)), "_2000s_2.s")] <- c(z.var.s[(n_data+101):NROW(z.var.s), 2])
-      return(df)
-}
-
 prepareSplineData <- function(df, vector, nsplines = 2, method = "quantile", user_cp_quantiles = NULL, display_plot = TRUE){
       #' Prepare spline data for a given vector in a data frame
       #'
@@ -256,11 +86,19 @@ prepareSplineData <- function(df, vector, nsplines = 2, method = "quantile", use
       return(df)
 }
 
-cloglog_inv <- function(x){
-      1-exp(-exp(x))
-}
-
 make_forest_plot <- function(inla_model, label, col){
+      #' This function creates a forest plot based on the coefficients of an INLA model. The forest plot visualizes the posterior estimates of the model's fixed effects. Depending on the label argument, the function can be used to create a forest plot for different purposes, such as visualizing the importance of different species traits for niche breadth or sensitivity.
+      #'
+      #' @param inla_model An INLA model object from which the coefficients are extracted.
+      #' @param label A character string indicating the type of the forest plot, either "Niche breadth" or "Sensitivity".
+      #' @param col A color to be used for the background of the plot.
+      #'
+      #' @return A ggplot object representing the forest plot. Each point in the plot represents a fixed effect in the model, with horizontal error bars showing the 95% credible interval for the effect, and the color indicating whether the effect is statistically significant.
+      #'
+      #' @details The function first extracts the coefficients of the fixed effects from the INLA model, then relabels the coefficients for better interpretability in the plot. Depending on the label argument, it adjusts the labels appropriately. The function then creates a ggplot object representing the forest plot, where each point corresponds to a fixed effect, the horizontal position of the point represents the median of the posterior distribution of the effect, and the horizontal error bar shows the 95% credible interval. The color of the point and the error bar indicates whether the effect is statistically significant, based on whether the 95% credible interval excludes zero.
+      #'
+      #' The function uses the ggplot2 package for plotting, and thus the returned object can be further customized using ggplot2 functions.
+      
       model_fixed <- data.frame(inla_model$summary.fixed) %>% 
             mutate(ID = rownames(.))
       
@@ -323,7 +161,6 @@ make_forest_plot <- function(inla_model, label, col){
             geom_point(data = model_fixed, aes(y = ID, x = X0.5quant, col = significant)) +
             geom_errorbar(data = model_fixed, aes(y = ID, xmin = X0.025quant, xmax = X0.975quant, col = significant), width = 0.1) +
             geom_vline(aes(xintercept = 0), lty = 2, alpha = .3) +
-            # geom_text(data = model_fixed %>% filter(significant == "yes"), aes(x = ID, y = X0.975quant), label = "*", nudge_x = 0.1, nudge_y = 0.01) +
             xlab("Posterior estimates") +
             ylab(element_blank()) +
             theme_minimal() +
@@ -334,22 +171,16 @@ make_forest_plot <- function(inla_model, label, col){
 
 rsq <- function(x, y) summary(lm(y~x))$r.squared
 
-get_model_p_r2 <- function(model){
-      var_list <- unique(gsub('[[:digit:]]+', '', rownames(model$summary.lincomb.derived))) %>% 
-            str_subset(pattern = "^LC_no")
-      model_pred <- model$summary.fitted.values[, "0.5quant"]
-      pseudo_r2_list <- list()
-      for(i in 1:length(var_list)){
-            var = var_list[i]
-            var_index <- grep(var, rownames(model$summary.lincomb.derived))
-            no_var_pred <- model$summary.lincomb.derived[var_index, "0.5quant"]
-            pseudo_r2 <- 1-rsq(model_pred, no_var_pred)
-            pseudo_r2_list[[var_list[i]]] <- pseudo_r2
-      }
-      return(pseudo_r2_list)
-}
-
 unscale_fun <- function(attr_column, value = NULL){
+      #' This function unscales a scaled variable back to its original scale. Scaling is a common pre-processing step in machine learning and statistics, which involves subtracting the mean and dividing by the standard deviation. This function does the reverse operation, multiplying by the standard deviation and adding the mean.
+      #'
+      #' @param attr_column A numeric vector that has been scaled. This vector should have the attributes 'scaled:scale' (the standard deviation of the original variable) and 'scaled:center' (the mean of the original variable), which are typically added by the scale() function in R.
+      #' @param value An optional numeric value to be unscaled. If provided, this function will unscale the provided value instead of the entire vector.
+      #'
+      #' @return A numeric vector or single value that has been unscaled back to the original scale of the variable.
+      #'
+      #' @details This function checks if a specific value is provided to be unscaled. If not, it unscales the entire vector. This can be used to interpret the coefficients of a model that was fitted with scaled predictors, as it allows to convert these coefficients back to the original scale of the predictors.
+      
       if(is.null(value)){
             unscaled <- attr_column * attr(attr_column, 'scaled:scale') + attr(attr_column, 'scaled:center')
       } else {
@@ -405,6 +236,20 @@ get_slope_unscaled <- function(model, data, covar, custom_unit_step, log_transfo
 }
 
 make_raw_data_plots <- function(inla_model, data, covariate = NULL, newscale.y = NULL, custom_unit_step = NULL){
+      #' This function generates a list of ggplot2 plots of raw data for each covariate in the INLA model against the response variable. It also adds estimated lines and uncertainty ribbons for numeric covariates, or point estimates for factor covariates, derived from the INLA model.
+      #'
+      #' @param inla_model An INLA model object.
+      #' @param data The data frame that was used to fit the INLA model.
+      #' @param covariate A character string specifying a single covariate to plot. If NULL, the function will generate plots for all covariates in the INLA model.
+      #' @param newscale.y A custom y scale, created with scale_y_continuous() or similar. If NULL, the default y scale is used.
+      #' @param custom_unit_step An optional custom unit step for the get_slope_unscaled function, which adjusts the slope of the estimate for the unit step.
+      #'
+      #' @return A list of ggplot2 objects, each being a plot for one covariate.
+      #'
+      #' @details The function generates plots using ggplot2. For numeric covariates, it creates a scatter plot of the raw data with an estimated line and uncertainty ribbons derived from the INLA model. For factor covariates, it creates a boxplot of the raw data with point estimates derived from the INLA model. If the covariate is "Mass", the function applies a custom x scale. In addition, the function generates labels for x and y axes, and the plot title is the output of the get_slope_unscaled function for the given covariate.
+      #'
+      #' The helper function create_label() retrieves a human-readable label for a given variable name, and the helper function create_plot() generates a ggplot2 object for a given covariate.
+      
       # Helper functions
       create_label <- function(var_name, label_df) {
             label_df$label_name[label_df$var_name == var_name]
