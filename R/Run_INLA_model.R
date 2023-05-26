@@ -406,7 +406,7 @@ form <- resp ~ 0 + ebird_intercept + atlas_intercept +
         control.group = list(model = 'ar1', hyper = h.spec))
 
 # ------------------------------------------------------------------------------------------------------------------------
-# Linear combinations
+## Linear combinations -----------------
 # ------------------------------------------------------------------------------------------------------------------------
 # Make linear combinations, used to derive the variation explained by individual fixed effects in the model
 TZ_lc_allFixed <-  inla.make.lincombs(ebird_intercept = rep(1, NROW(SP_Points_data)),

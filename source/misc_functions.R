@@ -260,92 +260,6 @@ cloglog_inv <- function(x){
       1-exp(-exp(x))
 }
 
-# make_lincomb_contrasts <- function(data, colname){
-#       k <- nlevels(data[, colname])
-#       if(k < 3 | k > 4){
-#             stop("Currently only works for factors with 3 or 4 levels.")
-#       }
-#       if (k == 4) {
-#             ncombs = 6
-#             LC <- inla.make.lincombs(lc1 = c( 1,  1,  1,  0,  0, 0),
-#                                      lc2 = c(-1,  0,  0,  1,  1, 0),
-#                                      lc3 = c( 0, -1,  0, -1,  0, 1),
-#                                      lc4 = c( 0,  0, -1,  0, -1,-1))
-#       }
-#       
-#       if (k == 3) {
-#             ncombs = 3
-#             LC <- inla.make.lincombs(lc1 = c( 1,  1,  0),
-#                                      lc2 = c(-1,  0, -1),
-#                                      lc3 = c( 0, -1,  1))
-#       }
-# 
-#       for(i in 1:ncombs){
-#             for (j in 1:k){
-#                   names(LC[[paste0("lc", i)]][[j]]) <- paste0(colname, levels(data[, colname])[j])
-#             }
-#       }
-#       
-#       # Assign names to combinations
-#       t <- 0
-#       for(i in 1:(k-1)) {
-#             for(j in (i+1):k) {
-#                   tryCatch({
-#                         t <- t + 1
-#                         names(LC)[t] <- paste0(levels(data[, colname])[i], "-", levels(data[, colname])[j])
-#                   }, error=function(e){})
-#             }
-#       }
-#       return(LC)
-# }
-# 
-# 
-# 
-# lincomb_output <- function(model, data){
-#       lincomb_out_df <- data.frame(model$summary.lincomb.derived) %>% 
-#             mutate(ID = gsub('[[:digit:]]+', '', rownames(.))) %>% 
-#             dplyr::select(-mode, -kld, -mean, -sd) %>% 
-#             pivot_wider(names_from = ID, values_from = c(2:4),
-#                         names_glue = "{ID}_{.value}",
-#                         values_fn = list) %>% 
-#             unnest()
-#       
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("BG", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("rain", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("temp", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("dry", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("HFP", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("Wing.Length", colnames(lincomb_out_df))], split = "_X")[[1]][1]]),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("avg.r", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-#                 len = 100)
-#       lincomb_out_df[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]] <- 
-#             seq(min(data[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-#                 max(data[, strsplit(colnames(lincomb_out_df)[grep("Trophic", colnames(lincomb_out_df))], split = "_X")[[1]][1]], na.rm = TRUE),
-#                 len = 100)
-#       
-#       return(lincomb_out_df)
-# }
-
 make_forest_plot <- function(inla_model, label, col){
       model_fixed <- data.frame(inla_model$summary.fixed) %>% 
             mutate(ID = rownames(.))
@@ -435,137 +349,6 @@ get_model_p_r2 <- function(model){
       return(pseudo_r2_list)
 }
 
-get_slope_unscaled <- function(model, data, covar){
-      model_fixed <- data.frame(model$summary.fixed) %>% 
-            mutate(ID = rownames(.))
-      slope <- (exp(model_fixed$mean[model_fixed$ID == covar]) - 1) * 100
-      if(covar == "Mass") {
-            unit_step <- round(exp(unscale_fun(value = 1, model_data[, covar])), digits = 2)
-      } else {
-            unit_step <- round(unscale_fun(value = 1, model_data[, covar]), digits = 2)
-      }
-      
-      new_unit_step = 10^floor(log10(abs(unit_step))) 
-      new_slope = (slope*new_unit_step)/unit_step
-      new_slope <- paste0(round(((slope*new_unit_step)/unit_step), digits = 1), "%")
-      
-      print(paste0("\u394X: ", new_unit_step, ", \u394Y: ", new_slope))
-}
-
-make_raw_data_plots <- function(inla_model, data, covariate = NULL, newscale = NULL){
-      lincomb_data <- data.frame(inla_model$summary.lincomb.derived) %>% 
-            mutate(ID = rownames(.)) %>% 
-            dplyr::select(-mode, -kld, -mean, -sd)
-      xlab_df <- data.frame(var_name = c('BG_imp', 'rain_imp', 'temp_imp', 'dry_imp', 'HFP_imp', 
-                                         'rain_breadth', 'temp_breadth', 'dry_breadth', 'HFP_breadth', 'BG_breadth',
-                                         'HWI', 'avg.r', 'Mass',
-                                         'Trophic.Level', 'Primary.Lifestyle', 'Migratory_ability'), 
-                            label_name = c('Bare ground sensitivity', 'Annual rainfall sensitivity', 'Hottest temperature sensitivity', 'Dryspell duration sensitivity', 'Human footprint sensitivity', 
-                                           'Annual rainfall niche breadth', 'Hottest temperature niche breadth', 'Dryspell duration niche breadth', 'Human footprint niche breadth', 'Bare ground niche breadth',
-                                           'Hand-wing index', 'Average dorsal reflectance', 'Body mass',
-                                           'Trophic level', 'Primary lifestyle', 'Migratory ability'))
-      ylab_df <- data.frame(var_name = c('relative_colonisation', 'relative_extinction', 'log_prop_change'), 
-                            label_name = c('Meaningful colonisation', 'Meaningful extinction', 'Proportional change'))
-      response <- as.character(inla_model$.args$formula[2])
-      
-      if(is.null(covariate)){
-      covariates <- strsplit(as.character(inla_model$.args$formula[3]), split = " \\+ ")[[1]]
-      plot_list <- vector('list', length(covariates))
-      
-
-      for (i in 1:length(covariates)){
-            if(is.numeric(data[, covariates[i]])){
-                  plot_list[[i]] <- local({
-                        i <- i
-                        p1 <- ggplot() +
-                              geom_point(data = data, aes(x = get(covariates[i]), y = get(response))) +
-                              geom_line(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ],
-                                        aes(x = seq(min(data[, covariates[i]], na.rm = T), max(data[, covariates[i]], na.rm = T), len = 100),
-                                            y = X0.5quant), lty = 2, alpha = 0.5, col = "red") +
-                              geom_ribbon(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ],
-                                          aes(x = seq(min(data[, covariates[i]], na.rm = T), max(data[, covariates[i]], na.rm = T), len = 100), 
-                                              ymin = X0.025quant, 
-                                              ymax = X0.975quant), 
-                                          alpha = 0.1) +
-                              theme_linedraw() +
-                              xlab(xlab_df$label_name[xlab_df$var_name == covariates[i]]) +
-                              ylab(ylab_df$label_name[ylab_df$var_name == response]) + 
-                              geom_rug(data = data, aes(x = get(covariates[i]), y = get(response)), col=rgb(.5,0,0, alpha=.4)) +
-                              ggtitle(get_slope_unscaled(inla_model, data, covariates[i]))
-                        if(is.null(newscale)){
-                              p1 <- p1 
-                        } else {
-                              p1 <- p1 +
-                                    newscale
-                        }
-                              
-                        print(p1)})
-            } else {
-                  plot_list[[i]] <- local({
-                        i <- i
-                        p2 <- ggplot(data) +
-                              geom_boxplot(aes(get(covariates[i]), get(response))) +
-                              geom_point(data = lincomb_data[grepl(covariates[i], rownames(lincomb_data)) == TRUE, ], 
-                                         aes(x = levels(data[, covariates[i]]), y = X0.5quant), col = "red", cex = 2) +
-                              theme_linedraw() +
-                              xlab(xlab_df$label_name[xlab_df$var_name == covariates[i]]) +
-                              ylab(ylab_df$label_name[ylab_df$var_name == response])
-                        if(is.null(newscale)){
-                              p2 <- p2 
-                        } else {
-                              p2 <- p2 +
-                                    newscale
-                        }
-                        print(p2)})
-            }
-      }
-      
-      return(plot_list)
-      } else {
-            if(is.numeric(data[, covariate])){
-                        plot_out <- ggplot() +
-                                    geom_point(data = data, aes(x = get(covariate), y = get(response))) +
-                                    geom_line(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
-                                              aes(x = seq(min(data[, covariate], na.rm = T), max(data[, covariate], na.rm = T), len = 100),
-                                                  y = X0.5quant), lty = 2, alpha = 0.5, col = "red") +
-                                    geom_ribbon(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
-                                                aes(x = seq(min(data[, covariate], na.rm = T), max(data[, covariate], na.rm = T), len = 100), 
-                                                    ymin = X0.025quant, 
-                                                    ymax = X0.975quant), 
-                                                alpha = 0.1) +
-                                    theme_linedraw() +
-                                    xlab(xlab_df$label_name[xlab_df$var_name == covariate]) +
-                                    ylab(ylab_df$label_name[ylab_df$var_name == response]) + 
-                                    geom_rug(data = data, aes(x = get(covariate), y = get(response)), col=rgb(.5,0,0, alpha=.4)) +
-                                    ggtitle(get_slope_unscaled(inla_model, data, covariate))
-                              if(is.null(newscale)){
-                                    plot_out <- plot_out 
-                              } else {
-                                    plot_out <- plot_out +
-                                          newscale
-                              }
-                              
-                              print(plot_out)
-                  } else {
-                        plot_out <- ggplot(data) +
-                                    geom_boxplot(aes(get(covariate), get(response))) +
-                                    geom_point(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ], 
-                                               aes(x = levels(data[, covariate]), y = X0.5quant), col = "red", cex = 2) +
-                                    theme_linedraw() +
-                                    xlab(xlab_df$label_name[xlab_df$var_name == covariate]) +
-                                    ylab(ylab_df$label_name[ylab_df$var_name == response])
-                              if(is.null(newscale)){
-                                    plot_out <- plot_out 
-                              } else {
-                                    plot_out <- plot_out +
-                                          newscale
-                              }
-                              print(plot_out)
-                  }
-            return(plot_out)
-      }
-}
-
 unscale_fun <- function(attr_column, value = NULL){
       if(is.null(value)){
             unscaled <- attr_column * attr(attr_column, 'scaled:scale') + attr(attr_column, 'scaled:center')
@@ -574,5 +357,127 @@ unscale_fun <- function(attr_column, value = NULL){
       }
       return(unscaled)
 }
+
+get_slope_unscaled <- function(model, data, covar, custom_unit_step, log_transformed = NULL){
+      #' This function is used to extract and adjust the slope of a given covariate from a log-linear model, making it interpretable on the original scale of the data. It can handle models where the response variable and certain covariates were log-transformed prior to modeling.
+      #'
+      #' @param model An object representing the fitted model, from which the coefficients are to be extracted.
+      #' @param data The original dataset used in the model, needed to obtain the scale of the covariates.
+      #' @param covar A string representing the name of the covariate for which the slope is to be extracted and adjusted.
+      #' @param custom_unit_step An optional numerical value representing a custom unit step size to be used in adjusting the slope. If NULL, the function will calculate an appropriate unit step size based on the scale of the covariate in the original data.
+      #' @param log_transformed A vector of character strings representing the names of covariates that were log-transformed in the model. This is used to adjust the slopes of these covariates.
+      #'
+      #' @return The function does not return a value but prints the adjusted slope (expressed as a percent change in the response per unit change in the covariate on the original scale) and the unit step size used in adjusting the slope.
+      #'
+      #' @details The function operates by extracting the model's coefficients and adjusting the slope of the specified covariate. If the covariate was log-transformed in the model (as indicated by covar being present in log_transformed), the function adjusts the slope to express it in terms of a unit change on the original scale of the covariate. The adjustment involves dividing the log-transformed slope by the value representing a one-unit step on the original scale of the covariate. This value is obtained using the `unscale_fun` function.
+      #' 
+      #' The function also calculates an appropriate unit step size based on the scale of the covariate in the original data, unless a custom unit step size is specified by the user. The slope is then adjusted for this unit step size
+      
+      # Extract coefficients from model
+      model_fixed <- data.frame(model$summary.fixed) %>% 
+            mutate(ID = rownames(.))
+      
+      # Calculate slope 
+      slope <- model_fixed$mean[model_fixed$ID == covar] * 100
+      
+      # Adjust for log transformation
+      if(covar %in% log_transformed) {
+            slope <- (exp(model_fixed$mean[model_fixed$ID == covar] / unscale_fun(value = 1, data[, covar])) - 1) * 100
+      }
+      
+      # Calculate unit step
+      unit_step <- round(unscale_fun(value = 1, data[, covar]), digits = 2)
+      
+      if(is.null(custom_unit_step)){
+            new_unit_step = 10^floor(log10(abs(unit_step))) 
+      } else {
+            new_unit_step = custom_unit_step
+      }
+      
+      # Adjust slope for new unit step
+      new_slope = (slope * new_unit_step) / unit_step
+      
+      # Format output
+      new_slope <- sprintf("%.1f%%", new_slope)  
+      
+      # Print result
+      print(sprintf("ΔX: %s, ΔY: %s", new_unit_step, new_slope))
+}
+
+make_raw_data_plots <- function(inla_model, data, covariate = NULL, newscale.y = NULL, custom_unit_step = NULL){
+      # Helper functions
+      create_label <- function(var_name, label_df) {
+            label_df$label_name[label_df$var_name == var_name]
+      }
+      
+      create_plot <- function(covariate) {
+            if (is.numeric(data[, covariate])) {
+                  p <- ggplot(data, aes(x = get(covariate))) +
+                        geom_point(aes(y = get(response))) +
+                        geom_line(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
+                                  aes(x = seq(min(data[, covariate], na.rm = TRUE), 
+                                              max(data[, covariate], na.rm = TRUE), 
+                                              len = 100),
+                                      y = X0.5quant), 
+                                  lty = 2, alpha = 0.5, col = "red") +
+                        geom_ribbon(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ],
+                                    aes(x = seq(min(data[, covariate], na.rm = TRUE), 
+                                                max(data[, covariate], na.rm = TRUE), 
+                                                len = 100), 
+                                        ymin = X0.025quant, 
+                                        ymax = X0.975quant), 
+                                    alpha = 0.1) +
+                        theme_linedraw() +
+                        xlab(create_label(covariate, xlab_df)) +
+                        ylab(create_label(response, ylab_df)) + 
+                        geom_rug(aes(x = get(covariate), y = get(response)), 
+                                 col = rgb(.5, 0, 0, alpha = .4)) +
+                        ggtitle(get_slope_unscaled(inla_model, data, covariate, custom_unit_step, "Mass"))
+            } else {
+                  p <- ggplot(data, aes(x = get(covariate))) +
+                        geom_boxplot(aes(y = get(response))) +
+                        geom_point(data = lincomb_data[grepl(covariate, rownames(lincomb_data)) == TRUE, ], 
+                                   aes(x = levels(data[, covariate]), y = X0.5quant), 
+                                   col = "red", cex = 2) +
+                        theme_linedraw() +
+                        xlab(create_label(covariate, xlab_df)) +
+                        ylab(create_label(response, ylab_df))
+            }
+            if(covariate == "Mass") p <- p + scale_x_continuous(breaks = log(c(seq(4, 10, by = 2),
+                                                                               15, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000, 10000)), 
+                                                                labels = c(seq(4, 10, by = 2),
+                                                                           15, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000, 10000))
+            if(!is.null(newscale.y)) p <- p + newscale.y
+            print(p)
+      }
+      
+      lincomb_data <- data.frame(inla_model$summary.lincomb.derived) %>% 
+            mutate(ID = rownames(.)) %>% 
+            dplyr::select(-mode, -kld, -mean, -sd)
+      xlab_df <- data.frame(var_name = c('BG_imp', 'rain_imp', 'temp_imp', 'dry_imp', 'HFP_imp', 
+                                         'rain_breadth', 'temp_breadth', 'dry_breadth', 'HFP_breadth', 'BG_breadth',
+                                         'HWI', 'avg.r', 'Mass',
+                                         'Trophic.Level', 'Primary.Lifestyle', 'Migratory_ability'), 
+                            label_name = c('Bare ground sensitivity', 'Annual rainfall sensitivity', 'Hottest temperature sensitivity', 'Dry spell duration sensitivity', 'Human footprint sensitivity', 
+                                           'Annual rainfall niche breadth', 'Hottest temperature niche breadth', 'Dry spell duration niche breadth', 'Human footprint niche breadth', 'Bare ground niche breadth',
+                                           'Hand-wing index', 'Average dorsal reflectance', 'Body mass',
+                                           'Trophic level', 'Primary lifestyle', 'Migratory ability'))
+      
+      ylab_df <- data.frame(var_name = c('relative_colonisation', 'relative_extinction', 'log_prop_change'), 
+                            label_name = c('Meaningful colonisation', 'Meaningful extinction', 'Proportional change'))
+      
+      response <- as.character(inla_model$.args$formula[2])
+      
+      covariates <- if(is.null(covariate)) {
+            strsplit(as.character(inla_model$.args$formula[3]), split = " \\+ ")[[1]]
+      } else {
+            covariate
+      }
+      
+      plot_list <- lapply(covariates, create_plot)
+      
+      return(plot_list)
+}
+
 
 

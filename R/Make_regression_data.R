@@ -69,15 +69,14 @@ all_species <- df_merged %>%
                     log_relative_colonisation, log_relative_extinction, prop_change, cells_lost, cells_colonised, sum_dist_20s,
                     Trophic.Level, Primary.Lifestyle, Migratory_ability,
                     BG_imp, rain_imp, temp_imp,
-                    dry_imp, HFP_imp, Wing.Length, HWI, avg.r,
+                    dry_imp, HFP_imp, HWI, avg.r,
                     rain_breadth, temp_breadth, dry_breadth,
                     HFP_breadth, BG_breadth, auc_80s, auc_20s, auc_mean, Mass)
 
 model_data <-  all_species %>% 
       filter(species != "Gyps africanus",        # only scavenger
-             species != "Struthio camelus",      # Mass outlier
-             !is.na(HFP_breadth))      
-
+             species != "Struthio camelus")  %>%     # Mass outlier
+      drop_na()
 # -----------------------------------------------------------------------------------------------------------------
 # Linear combinations for INLA model
 # -----------------------------------------------------------------------------------------------------------------

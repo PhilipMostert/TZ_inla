@@ -1,8 +1,7 @@
 rm(list = ls())
 library(tidyverse)
 library(INLA)
-
-# Needs R 4.1.2, INLA 22.04.16 for robust regression
+library(MASS)
 
 # -----------------------------------------------------------------------------------------------------------------
 # Data import
@@ -30,11 +29,11 @@ max(model_data$auc_mean)
 form_prop_change <- log_prop_change ~ Trophic.Level + Primary.Lifestyle + Migratory_ability + 
       BG_imp + rain_imp + temp_imp + dry_imp + HFP_imp + HWI + Mass + avg.r
 
-model_prop_change <- inla(form_prop_change, data = model_data,
-               family = "T",
-               lincomb = all_lc_sens,
-               control.compute = list(dic = TRUE, cpo = TRUE),
-               control.predictor=list(compute=TRUE))
+model_prop_change <- inla(form_prop_change, data = model_data, 
+                          family = "T",  
+                          lincomb = all_lc_sens,
+                          control.compute = list(dic = TRUE, cpo = TRUE, return.marginals.predictor=TRUE), 
+                          control.predictor=list(compute=TRUE))
 
 hist(model_prop_change$cpo$pit, main="", breaks = 10, xlab = "PIT")
 qqplot(qunif(ppoints(length(model_prop_change$cpo$pit))),
@@ -62,7 +61,7 @@ model_loss_log <- inla(form_loss_log, data = model_data,
                               lincomb = all_lc_sens,
                               control.compute = list(dic = TRUE, cpo = TRUE, return.marginals.predictor=TRUE), 
                               control.predictor=list(compute=TRUE))
-
+summary(model_loss_log)
 hist(model_loss_log$cpo$pit, main="", breaks = 10, xlab = "PIT")
 qqplot(qunif(ppoints(length(model_loss_log$cpo$pit))), model_loss_log$cpo$pit, main = "Q-Q plot for Unif(0,1)", xlab = "Theoretical Quantiles", ylab = "Sample Quantiles")
 qqline(model_loss_log$cpo$pit, distribution = function(p) qunif(p), prob = c(0.1, 0.9))
